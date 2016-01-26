@@ -3,7 +3,8 @@ This repository contains a bunch of scripts for running experiments with plannin
 
 ## Domain directory structure:
 
-```<domain>
+```
+<domain>
  |- [problems] .. directory with Picat files with problem instances
  |- [models] .. directory with Picat domain models. Each model should contain string '###PLANNER###' where it calls the picat planner.
  |- mod_list .. list of models to use in experiment (listed without .pi extension)
@@ -14,20 +15,16 @@ This repository contains a bunch of scripts for running experiments with plannin
 ## Scripts:
 
 1. `run.sh` - this script automatically runs all the experiments. If provided with list of parameters it runs experiments only for selected domains.
-
-e.g.:
-```
-./run.sh depots nomystery
-``` 
-runs experiments only with *depots* and *nomystery* domains 
-
-*Parameters:*
-`CPU_CNT` .. number of parallel threads to launch
-
+  e.g.:
+  ```
+  ./run.sh depots nomystery
+  ``` 
+  runs experiments only with *depots* and *nomystery* domains 
+  
+  *Parameters:*
+  `CPU_CNT` .. number of parallel threads to launch
 2. `run_one.sh` - this scipt is called by the **run.sh** script for each domain that is to be processed
-
-*Parameters:*
-`TIME_LIMIT` .. time limit for execution of one problem instance
-`MEM_LIMIT` .. memory limit for execution of one problem instance
-
-3. `get_instances.sh`
+  *Parameters:*
+  `TIME_LIMIT` .. time limit for execution of one problem instance
+  `MEM_LIMIT` .. memory limit for execution of one problem instance
+3. `get_instances.sh` - script that cuts one long file with problem instances into individual problem instance files
