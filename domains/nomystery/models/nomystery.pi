@@ -1,0 +1,74 @@
+import planner.
+import ordset.
+
+main([Bench]) =>
+  println(Bench),
+  P = Bench.to_atom(),
+  time(call(P)).
+
+pddl(IFacts,GFacts) => 
+  initialize_table,
+  IN_INIT = [(P,T) : $in(P,T) in IFacts],
+  FUEL_INIT = [(LEVEL,T) : $fuel(LEVEL,T) in IFacts],
+  STAG_AT_INIT = [(L,P) : $stag_at(L,P) in IFacts],
+  AT_INIT = [(L,O) : $at(L,O) in IFacts],
+  IN_GOAL = [(P,T) : $in(P,T) in GFacts],
+  FUEL_GOAL = [(LEVEL,T) : $fuel(LEVEL,T) in GFacts],
+  STAG_AT_GOAL = [(L,P) : $stag_at(L,P) in GFacts],
+  AT_GOAL = [(L,O) : $at(L,O) in GFacts],
+  Facts = [Fact : Fact in IFacts, (
+    Fact = $package(_);
+    Fact = $fuellevel(_);
+    Fact = $location(_);
+    Fact = $truck(_);
+    Fact = $connected(_,_);
+    Fact = $fuelcost(_,_,_);
+    Fact = $sum(_,_,_)
+  )],
+  cl_facts([$goal(AT_GOAL,FUEL_GOAL,IN_GOAL,STAG_AT_GOAL)|Facts],[]),
+  ###PLANNER###($s(AT_INIT,FUEL_INIT,IN_INIT,STAG_AT_INIT),99999999,Plan,PlanCost),
+  writeln(plan=Plan),
+  writeln(cost=PlanCost).
+
+final(s(AT,FUEL,IN,STAG_AT)), goal(AT_GOAL,FUEL_GOAL,IN_GOAL,STAG_AT_GOAL),
+ subset(AT_GOAL,AT),
+ subset(FUEL_GOAL,FUEL),
+ subset(IN_GOAL,IN),
+ subset(STAG_AT_GOAL,STAG_AT)  => 
+true.
+
+action(s(AT0,FUEL0,IN0,STAG_AT0),NextState, Action, Cost),
+member((T,L),AT0),
+select((P,L),AT0,AT1),
+member((P,L2),STAG_AT0),
+not (=(L,L2))
+?=>
+IN1 = insert_ordered(IN0,(P,T)),
+NextState = $s(AT1,FUEL0,IN1,STAG_AT0),
+Action = $act_LOAD(L,L2,P,T),
+Cost=1.
+
+
+action(s(AT0,FUEL0,IN0,STAG_AT0),NextState, Action, Cost),
+member((T,L),AT0),
+select((P,T),IN0,IN1),
+select((P,L),STAG_AT0,STAG_AT1)
+?=>
+AT1 = insert_ordered(AT0,(P,L)),
+NextState = $s(AT1,FUEL0,IN1,STAG_AT1),
+Action = $act_UNLOAD(L,P,T),
+Cost=1.
+
+
+action(s(AT0,FUEL0,IN0,STAG_AT0),NextState, Action, Cost),
+connected(L1,L2),
+fuelcost(FUELDELTA,L1,L2),
+select((T,FUELPRE),FUEL0,FUEL1),
+sum(FUELPOST,FUELDELTA,FUELPRE),
+select((T,L1),AT0,AT1)
+?=>
+AT2 = insert_ordered(AT1,(T,L2)),
+FUEL2 = insert_ordered(FUEL1,(T,FUELPOST)),
+NextState = $s(AT2,FUEL2,IN0,STAG_AT0),
+Action = $act_DRIVE(FUELDELTA,FUELPOST,FUELPRE,L1,L2,T),
+Cost=1.

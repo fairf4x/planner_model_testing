@@ -1,0 +1,457 @@
+import planner.
+import ordset.
+
+main([Bench]) =>
+  println(Bench),
+  P = Bench.to_atom(),
+  time(call(P)).
+
+pddl(IFacts,GFacts) => 
+  initialize_table,
+  EMPTY_INIT = [C : $empty(C) in IFacts],
+  STATE_PRED_INIT = [S : $state_pred(S) in IFacts],
+  STAG_CONTAINS_INIT = [(B,C) : $stag_contains(B,C) in IFacts],
+  CLEAN_INIT = [C : $clean(C) in IFacts],
+  USED_INIT = [(B,C) : $used(B,C) in IFacts],
+  UNSHAKED_INIT = [S : $unshaked(S) in IFacts],
+  SHAKED_INIT = [S : $shaked(S) in IFacts],
+  HANDEMPTY_INIT = [H : $handempty(H) in IFacts],
+  HOLDING_INIT = [(C,H) : $holding(C,H) in IFacts],
+  SHAKER_LEVEL_INIT = [(L,S) : $shaker_level(L,S) in IFacts],
+  ONTABLE_INIT = [C : $ontable(C) in IFacts],
+  CONTAINS_INIT = [(B,C) : $contains(B,C) in IFacts],
+  EMPTY_GOAL = [C : $empty(C) in GFacts],
+  STATE_PRED_GOAL = [S : $state_pred(S) in GFacts],
+  STAG_CONTAINS_GOAL = [(B,C) : $stag_contains(B,C) in GFacts],
+  CLEAN_GOAL = [C : $clean(C) in GFacts],
+  USED_GOAL = [(B,C) : $used(B,C) in GFacts],
+  UNSHAKED_GOAL = [S : $unshaked(S) in GFacts],
+  SHAKED_GOAL = [S : $shaked(S) in GFacts],
+  HANDEMPTY_GOAL = [H : $handempty(H) in GFacts],
+  HOLDING_GOAL = [(C,H) : $holding(C,H) in GFacts],
+  SHAKER_LEVEL_GOAL = [(L,S) : $shaker_level(L,S) in GFacts],
+  ONTABLE_GOAL = [C : $ontable(C) in GFacts],
+  CONTAINS_GOAL = [(B,C) : $contains(B,C) in GFacts],
+  Facts = [Fact : Fact in IFacts, (
+    Fact = $dispenser(_);
+    Fact = $state(_);
+    Fact = $level(_);
+    Fact = $hand(_);
+    Fact = $cocktail(_);
+    Fact = $shaker(_);
+    Fact = $shot(_);
+    Fact = $ingredient(_);
+    Fact = $cocktail_part1(_,_);
+    Fact = $cocktail_part2(_,_);
+    Fact = $dispenses(_,_);
+    Fact = $next(_,_);
+    Fact = $shaker_empty_level(_,_)
+  )],
+  cl_facts([$goal(CLEAN_GOAL,CONTAINS_GOAL,EMPTY_GOAL,HANDEMPTY_GOAL,HOLDING_GOAL,ONTABLE_GOAL,SHAKED_GOAL,SHAKER_LEVEL_GOAL,STAG_CONTAINS_GOAL,STATE_PRED_GOAL,UNSHAKED_GOAL,USED_GOAL)|Facts],[]),
+  best_plan_bb($s(CLEAN_INIT,CONTAINS_INIT,EMPTY_INIT,HANDEMPTY_INIT,HOLDING_INIT,ONTABLE_INIT,SHAKED_INIT,SHAKER_LEVEL_INIT,STAG_CONTAINS_INIT,STATE_PRED_INIT,UNSHAKED_INIT,USED_INIT),99999999,Plan,PlanCost),
+  writeln(plan=Plan),
+  writeln(cost=PlanCost).
+
+final(s(CLEAN,CONTAINS,EMPTY,HANDEMPTY,HOLDING,ONTABLE,SHAKED,SHAKER_LEVEL,STAG_CONTAINS,STATE_PRED,UNSHAKED,USED)), goal(CLEAN_GOAL,CONTAINS_GOAL,EMPTY_GOAL,HANDEMPTY_GOAL,HOLDING_GOAL,ONTABLE_GOAL,SHAKED_GOAL,SHAKER_LEVEL_GOAL,STAG_CONTAINS_GOAL,STATE_PRED_GOAL,UNSHAKED_GOAL,USED_GOAL),
+ subset(CLEAN_GOAL,CLEAN),
+ subset(CONTAINS_GOAL,CONTAINS),
+ subset(EMPTY_GOAL,EMPTY),
+ subset(HANDEMPTY_GOAL,HANDEMPTY),
+ subset(HOLDING_GOAL,HOLDING),
+ subset(ONTABLE_GOAL,ONTABLE),
+ subset(SHAKED_GOAL,SHAKED),
+ subset(SHAKER_LEVEL_GOAL,SHAKER_LEVEL),
+ subset(STAG_CONTAINS_GOAL,STAG_CONTAINS),
+ subset(STATE_PRED_GOAL,STATE_PRED),
+ subset(UNSHAKED_GOAL,UNSHAKED),
+ subset(USED_GOAL,USED)  => 
+true.
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(C),
+select((C),ONTABLE0,ONTABLE1),
+select((H),HANDEMPTY0,HANDEMPTY1),
+select((state0),STATE_PRED0,STATE_PRED1)
+?=>
+HOLDING1 = insert_ordered(HOLDING0,(H,C)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state1)),
+NextState = $s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY1,HOLDING1,ONTABLE1,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_grasp_shot(C,H),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(C),
+select((H,C),HOLDING0,HOLDING1),
+select((state6),STATE_PRED0,STATE_PRED1)
+?=>
+HANDEMPTY1 = insert_ordered(HANDEMPTY0,(H)),
+ONTABLE1 = insert_ordered(ONTABLE0,(C)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state7)),
+NextState = $s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY1,HOLDING1,ONTABLE1,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_leave_shot(C,H),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(C),
+select((H,C),HOLDING0,HOLDING1),
+select((state13),STATE_PRED0,STATE_PRED1)
+?=>
+HANDEMPTY1 = insert_ordered(HANDEMPTY0,(H)),
+ONTABLE1 = insert_ordered(ONTABLE0,(C)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state0)),
+NextState = $s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY1,HOLDING1,ONTABLE1,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_leave_shot_g(C,H),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shaker(C),
+select((C),ONTABLE0,ONTABLE1),
+select((H),HANDEMPTY0,HANDEMPTY1),
+select((state7),STATE_PRED0,STATE_PRED1)
+?=>
+HOLDING1 = insert_ordered(HOLDING0,(H,C)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state8)),
+NextState = $s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY1,HOLDING1,ONTABLE1,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_grasp_shaker(C,H),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shaker(C),
+select((H,C),HOLDING0,HOLDING1),
+select((state12),STATE_PRED0,STATE_PRED1)
+?=>
+HANDEMPTY1 = insert_ordered(HANDEMPTY0,(H)),
+ONTABLE1 = insert_ordered(ONTABLE0,(C)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state0)),
+NextState = $s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY1,HOLDING1,ONTABLE1,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_leave_shaker(C,H),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+dispenses(D,I),
+select((S),EMPTY0,EMPTY1),
+select((S),CLEAN0,CLEAN1),
+cocktail_part1(B,I),
+member((S,B),STAG_CONTAINS0),
+select((state1),STATE_PRED0,STATE_PRED1)
+?=>
+CONTAINS1 = insert_ordered(CONTAINS0,(S,I)),
+USED1 = insert_ordered(USED0,(S,I)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state2)),
+NextState = $s(CLEAN1,CONTAINS1,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED1),
+Action = $act_fill_shot(B,D,H1,H2,I,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+dispenses(D,I),
+select((S),EMPTY0,EMPTY1),
+member((S,I),USED0),
+cocktail_part1(B,I),
+member((S,B),STAG_CONTAINS0),
+select((state1),STATE_PRED0,STATE_PRED1)
+?=>
+CONTAINS1 = insert_ordered(CONTAINS0,(S,I)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state2)),
+NextState = $s(CLEAN0,CONTAINS1,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_refill_shot(B,D,H1,H2,I,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+dispenses(D,I),
+select((S),EMPTY0,EMPTY1),
+select((S),CLEAN0,CLEAN1),
+select((S,I),STAG_CONTAINS0,STAG_CONTAINS1),
+select((state1),STATE_PRED0,STATE_PRED1)
+?=>
+CONTAINS1 = insert_ordered(CONTAINS0,(S,I)),
+USED1 = insert_ordered(USED0,(S,I)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state13)),
+NextState = $s(CLEAN1,CONTAINS1,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS1,STATE_PRED2,UNSHAKED0,USED1),
+Action = $act_fill_shot_g(D,H1,H2,I,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+dispenses(D,I),
+select((S),EMPTY0,EMPTY1),
+member((S,I),USED0),
+select((S,I),STAG_CONTAINS0,STAG_CONTAINS1),
+select((state1),STATE_PRED0,STATE_PRED1)
+?=>
+CONTAINS1 = insert_ordered(CONTAINS0,(S,I)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state13)),
+NextState = $s(CLEAN0,CONTAINS1,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS1,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_refill_shot_g(D,H1,H2,I,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+dispenses(D,I),
+select((S),EMPTY0,EMPTY1),
+select((S),CLEAN0,CLEAN1),
+cocktail_part2(B,I),
+member((S,B),STAG_CONTAINS0),
+select((state4),STATE_PRED0,STATE_PRED1)
+?=>
+CONTAINS1 = insert_ordered(CONTAINS0,(S,I)),
+USED1 = insert_ordered(USED0,(S,I)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state5)),
+NextState = $s(CLEAN1,CONTAINS1,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED1),
+Action = $act_fill_shot_2(B,D,H1,H2,I,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+dispenses(D,I),
+select((S),EMPTY0,EMPTY1),
+member((S,I),USED0),
+cocktail_part2(B,I),
+member((S,B),STAG_CONTAINS0),
+select((state3),STATE_PRED0,STATE_PRED1)
+?=>
+CONTAINS1 = insert_ordered(CONTAINS0,(S,I)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state5)),
+NextState = $s(CLEAN0,CONTAINS1,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_refill_shot_2(B,D,H1,H2,I,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+member((S),EMPTY0),
+select((S,B),USED0,USED1),
+member((state1),STATE_PRED0)
+?=>
+CLEAN1 = insert_ordered(CLEAN0,(S)),
+NextState = $s(CLEAN1,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED1),
+Action = $act_clean_shot(B,H1,H2,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+member((S),EMPTY0),
+select((S,B),USED0,USED1),
+select((state3),STATE_PRED0,STATE_PRED1)
+?=>
+CLEAN1 = insert_ordered(CLEAN0,(S)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state4)),
+NextState = $s(CLEAN1,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED1),
+Action = $act_clean_shot_2(B,H1,H2,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+member((S),EMPTY0),
+select((S,B),USED0,USED1),
+member((state6),STATE_PRED0)
+?=>
+CLEAN1 = insert_ordered(CLEAN0,(S)),
+NextState = $s(CLEAN1,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED1),
+Action = $act_clean_shot_3(B,H1,H2,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+ingredient(I),
+shot(S),
+member((H1,S),HOLDING0),
+select((S,I),CONTAINS0,CONTAINS1),
+select((D),EMPTY0,EMPTY1),
+select((D),CLEAN0,CLEAN1),
+select((D,L),SHAKER_LEVEL0,SHAKER_LEVEL1),
+next(L,L1),
+select((state2),STATE_PRED0,STATE_PRED1)
+?=>
+EMPTY2 = insert_ordered(EMPTY1,(S)),
+CONTAINS2 = insert_ordered(CONTAINS1,(D,I)),
+UNSHAKED1 = insert_ordered(UNSHAKED0,(D)),
+SHAKER_LEVEL2 = insert_ordered(SHAKER_LEVEL1,(D,L1)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state3)),
+NextState = $s(CLEAN1,CONTAINS2,EMPTY2,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL2,STAG_CONTAINS0,STATE_PRED2,UNSHAKED1,USED0),
+Action = $act_pour_shot_to_clean_shaker(D,H1,I,L,L1,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+ingredient(I),
+shot(S),
+member((H1,S),HOLDING0),
+select((S,I),CONTAINS0,CONTAINS1),
+member((D),UNSHAKED0),
+select((D,L),SHAKER_LEVEL0,SHAKER_LEVEL1),
+next(L,L1),
+select((state5),STATE_PRED0,STATE_PRED1)
+?=>
+CONTAINS2 = insert_ordered(CONTAINS1,(D,I)),
+EMPTY1 = insert_ordered(EMPTY0,(S)),
+SHAKER_LEVEL2 = insert_ordered(SHAKER_LEVEL1,(D,L1)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state6)),
+NextState = $s(CLEAN0,CONTAINS2,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL2,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_pour_shot_to_used_shaker(D,H1,I,L,L1,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+cocktail(B),
+member((H,S),HOLDING0),
+select((S,B),CONTAINS0,CONTAINS1),
+select((S),SHAKED0,SHAKED1),
+select((S,L),SHAKER_LEVEL0,SHAKER_LEVEL1),
+shaker_empty_level(S,L1),
+select((state10),STATE_PRED0,STATE_PRED1)
+?=>
+SHAKER_LEVEL2 = insert_ordered(SHAKER_LEVEL1,(S,L1)),
+EMPTY1 = insert_ordered(EMPTY0,(S)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state11)),
+NextState = $s(CLEAN0,CONTAINS1,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED1,SHAKER_LEVEL2,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_empty_shaker(B,H,L,L1,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shaker(S),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+member((S),EMPTY0),
+select((state11),STATE_PRED0,STATE_PRED1)
+?=>
+CLEAN1 = insert_ordered(CLEAN0,(S)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state12)),
+NextState = $s(CLEAN1,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_clean_shaker(H1,H2,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+member((H1,S),HOLDING0),
+member((H2),HANDEMPTY0),
+select((S,D1),CONTAINS0,CONTAINS1),
+select((S,D2),CONTAINS1,CONTAINS2),
+cocktail_part1(B,D1),
+cocktail_part2(B,D2),
+select((S),UNSHAKED0,UNSHAKED1),
+select((state8),STATE_PRED0,STATE_PRED1)
+?=>
+SHAKED1 = insert_ordered(SHAKED0,(S)),
+CONTAINS3 = insert_ordered(CONTAINS2,(S,B)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state9)),
+NextState = $s(CLEAN0,CONTAINS3,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED1,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED2,UNSHAKED1,USED0),
+Action = $act_shake(B,D1,D2,H1,H2,S),
+Cost=1.
+
+
+action(s(CLEAN0,CONTAINS0,EMPTY0,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL0,STAG_CONTAINS0,STATE_PRED0,UNSHAKED0,USED0),NextState, Action, Cost),
+shot(D),
+member((H,S),HOLDING0),
+member((S),SHAKED0),
+select((D),EMPTY0,EMPTY1),
+select((D),CLEAN0,CLEAN1),
+member((S,B),CONTAINS0),
+select((S,L),SHAKER_LEVEL0,SHAKER_LEVEL1),
+next(L1,L),
+select((state9),STATE_PRED0,STATE_PRED1)
+?=>
+CONTAINS1 = insert_ordered(CONTAINS0,(D,B)),
+STAG_CONTAINS1 = delete(STAG_CONTAINS0,(S,B)),
+SHAKER_LEVEL2 = insert_ordered(SHAKER_LEVEL1,(S,L1)),
+STATE_PRED2 = insert_ordered(STATE_PRED1,(state10)),
+NextState = $s(CLEAN1,CONTAINS1,EMPTY1,HANDEMPTY0,HOLDING0,ONTABLE0,SHAKED0,SHAKER_LEVEL2,STAG_CONTAINS1,STATE_PRED2,UNSHAKED0,USED0),
+Action = $act_pour_shaker_to_shot(B,D,H,L,L1,S),
+Cost=1.
+p435_1 =>
+    Init = $[
+        cocktail(cocktail1),
+        cocktail(cocktail2),
+        cocktail(cocktail3),
+        cocktail(cocktail4),
+        dispenser(dispenser1),
+        dispenser(dispenser2),
+        dispenser(dispenser3),
+        ingredient(ingredient1),
+        ingredient(ingredient2),
+        ingredient(ingredient3),
+        level(l0),
+        level(l1),
+        level(l2),
+        hand(left),
+        hand(right),
+        shaker(shaker1),
+        shot(shot1),
+        shot(shot2),
+        shot(shot3),
+        shot(shot4),
+        shot(shot5),
+        ontable(shaker1),
+        ontable(shot1),
+        ontable(shot2),
+        ontable(shot3),
+        ontable(shot4),
+        ontable(shot5),
+        dispenses(dispenser1,ingredient1),
+        dispenses(dispenser2,ingredient2),
+        dispenses(dispenser3,ingredient3),
+        clean(shaker1),
+        clean(shot1),
+        clean(shot2),
+        clean(shot3),
+        clean(shot4),
+        clean(shot5),
+        empty(shaker1),
+        empty(shot1),
+        empty(shot2),
+        empty(shot3),
+        empty(shot4),
+        empty(shot5),
+        handempty(left),
+        handempty(right),
+        shaker_empty_level(shaker1,l0),
+        shaker_level(shaker1,l0),
+        next(l0,l1),
+        next(l1,l2),
+        cocktail_part1(cocktail1,ingredient3),
+        cocktail_part2(cocktail1,ingredient1),
+        cocktail_part1(cocktail2,ingredient2),
+        cocktail_part2(cocktail2,ingredient3),
+        cocktail_part1(cocktail3,ingredient3),
+        cocktail_part2(cocktail3,ingredient2),
+        cocktail_part1(cocktail4,ingredient3),
+        cocktail_part2(cocktail4,ingredient1)],
+    Goal = $[
+        contains(shot1,cocktail4),
+        contains(shot2,cocktail2),
+        contains(shot3,cocktail3),
+        contains(shot4,cocktail1)],
+    pddl(Init,Goal).
