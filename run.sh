@@ -4,7 +4,7 @@
 
 DOMAIN_DIR='domains'
 RESULT_DIR='results'
-CPU_CNT=2
+CPU_CNT=6
 
 BASE_DIR=`pwd`
 

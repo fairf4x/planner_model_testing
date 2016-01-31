@@ -19,12 +19,11 @@ This repository contains a bunch of scripts for running experiments with plannin
   ```
   ./run.sh depots nomystery
   ``` 
-  runs experiments only with *depots* and *nomystery* domains 
-  
-  *Parameters:*
+..runs experiments only with *depots* and *nomystery* domains 
+..*Parameters:*  
   `CPU_CNT` .. number of parallel threads to launch
 2. `run_one.sh` - this scipt is called by the **run.sh** script for each domain that is to be processed
-  *Parameters:*
-  `TIME_LIMIT` .. time limit for execution of one problem instance
-  `MEM_LIMIT` .. memory limit for execution of one problem instance
+..*Parameters:*  
+..`TIME_LIMIT` .. time limit for execution of one problem instance  
+..`MEM_LIMIT` .. memory limit for execution of one problem instance
 3. `get_instances.sh` - script that cuts one long file with problem instances into individual problem instance files

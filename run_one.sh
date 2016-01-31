@@ -5,8 +5,8 @@ PICAT=`which picat`
 # constrain is a script which ensure that the proces is terminated if it breaks time or memory limits
 TIMEOUT=`which constrain`
 
-# limit computation to 60sec
-TIME_LIMIT=10
+# limit computation to 30 min
+TIME_LIMIT=1800
 
 # limit computation to 1G of RAM
 MEM_LIMIT=1000000
