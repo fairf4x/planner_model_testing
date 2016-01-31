@@ -39,7 +39,7 @@ echo "generating list of experiments:"
 genexp > experiments
 
 echo "creating result directory:"
-[[ -d "$RESULT_PATH" ]] || mkdir $RESULT_PATH
+[[ -d "$RESULT_PATH" ]] || mkdir -p $RESULT_PATH
 
 echo "executing experiments in parallel:"
 cat experiments | parallel -j $CPU_CNT --workdir `pwd` $BASE_DIR/run_one.sh {}
