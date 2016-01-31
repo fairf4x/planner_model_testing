@@ -1,0 +1,1416 @@
+import os,util.
+
+main =>
+    List = listdir("."),
+    foreach(D in List,  D !== ".", D !== "..",directory(D))
+        println(D),
+        PDDLInsL = [Ins : Ins in listdir(D), append(_,".pddl",Ins)],
+        BenchL = [Ins1 : Ins in PDDLInsL,(append(Ins1,".pddl",Ins)->true;Ins1=Ins)],
+        foreach(Ins in BenchL,(len(Ins)<=10 ; slice(Ins,len(Ins)-9) != "_formatted"))
+            println(Ins),
+            convert(D++"/"++Ins,D++"/"++Ins,D++"/"++D)
+        end
+    end.
+	
+main ([Input,Output]) =>
+	(append(Input1,".pddl",Input)->true;Input1=Input),
+	(append(Output1,".pi",Output)->true;Output1=Output),
+	convert(Input1,Output1,Output1).
+	
+convert(InFile,Output,Temp) =>
+	(((append(_,['/'|InFile1],Output);append(_,['\\'|InFile1],Output)),
+      not member('/',InFile1), not member('\\',InFile1)) ->
+          true
+    ;
+        InFile1 = Output
+    ),
+    InFile2 = [Char1 : Char in InFile1, ((Char=='.';Char=='-') -> Char1='_'; Char1=Char)],
+    (append(MainInFile2,"_pddl",InFile2) -> true; MainInFile2=InFile2),
+	
+	(append(OutFile,"_pddl",Output) -> true; OutFile=Output),
+	OutFile2 = [Char1 : Char in OutFile, ((Char=='.';Char=='-') -> Char1='_'; Char1=Char)],
+	OutFD = open(OutFile2++".pi",write),
+	
+	InFD = open(InFile++".pddl"),
+	MidFD = open(Temp++"_formatted.pddl",write),
+	%until now only changed special char
+	hyphon_to_underscore(InFD,MidFD),
+    read_tokens(open(Temp++"_formatted.pddl"),Tokens0),
+	if check_problem_file(Tokens0) then
+		printf(OutFD,"%w =>%n",MainInFile2),
+		parse_prob(OutFD,Tokens0),
+		print(OutFD,"    pddl(Init,Goal).\n\n")
+	else
+		Constants = new_map(),
+		cl_facts([$typing(no_type)],[]),
+		parse_prob(OutFD,Types,Constants,Tokens0)
+	end,
+	close(OutFD).
+	
+check_problem_file(['(','problem'|Tokens])  => true.
+check_problem_file(['(',':','predicates'|Tokens])  => false.
+check_problem_file([_|Tokens]) => check_problem_file(Tokens).
+
+
+read_tokens(InFD,Tokens) =>
+    read_tokens(InFD,read_picat_token(InFD),Tokens).
+
+read_tokens(InFD,end_of_file,Tokens) => Tokens=[], close(InFD).
+read_tokens(InFD,';',Tokens) => 
+    Char = read_char(InFD),
+    while (Char !== '\n', Char !== end_of_file)
+        Char := read_char(InFD)
+    end,
+    read_picat_token(InFD) = NextToken,   
+    read_tokens(InFD,NextToken,Tokens).
+read_tokens(InFD,Token,Tokens) => 
+	Tokens=[Token|Tokens1],
+    read_picat_token(InFD) = NextToken,
+	InFD2 = InFD,
+    read_tokens(InFD,NextToken,Tokens1).
+	
+hyphon_to_underscore(InFD,MidFD) =>
+    hyphon_to_underscore(InFD,read_char(InFD),MidFD).
+	
+hyphon_to_underscore(InFD,end_of_file,MidFD) => close(MidFD), close(InFD).
+hyphon_to_underscore(InFD,';',MidFD) => 
+    Char = read_char(InFD),
+    while (Char !== '\n', Char !== end_of_file)
+        Char := read_char(InFD)
+    end,
+    read_char(InFD) = NextChar,   
+    hyphon_to_underscore(InFD,NextChar,MidFD).
+hyphon_to_underscore(InFD,Char,MidFD) => 
+    read_char(InFD) = NextChar,
+	InFD2 = InFD,
+	if( Char == '-' , NextChar != ' ' ) then				%if hyphon isn't follow by a whitespace, it must be changed in underscore
+		write_char(MidFD,'_')
+	else
+		write_char(MidFD,to_lowercase(Char))
+		
+	end,
+    hyphon_to_underscore(InFD,NextChar,MidFD).
+	
+
+
+parse_prob(_OutFD,Types,Constants,[]) => true.
+	
+											 
+parse_prob(OutFD,Types,Constants,['(',':','types'|Tokens]) => 
+	Types = new_map(),
+	cl_facts([$typing(type)],[]),
+	parse_types(Types,[],Tokens,TokensR),
+	parse_prob(OutFD,Types,Constants,TokensR).
+	
+parse_prob(OutFD,Types,Constants,['(',':','constants'|Tokens]) => 
+	parse_constants(Constants,[],Tokens,TokensR),
+	parse_prob(OutFD,Types,Constants,TokensR).
+	
+parse_prob(OutFD,Types,Constants,['(',':','predicates'|Tokens]) =>
+	print(OutFD,"import planner.\nimport ordset.\n\nmain([Bench])=>\n  println(Bench),\n  P = Bench.to_atom(),\n  call(P).\n\n"),
+	%Pds is map of predicates with their ariety(list of args), Rigids map of rigds predicates
+	Pds = new_map(),
+	Rigids = new_map(),
+	PdTypes = new_map(),
+	parse_predicates(Pds,Rigids,PdTypes,Tokens,TokensR1),
+	Fcs = new_map(),
+	FRigids = new_map(),
+	parse_prob_fc(Fcs,FRigids,PdTypes,TokensR1,TokensR2),
+	init_planner(OutFD,Pds,Fcs,Rigids,FRigids,Types,Constants,Tokens),
+	createMap([],PdMapList,keys(Pds)),
+	createMap([],FcMapList,keys(Fcs)),
+	MapList = PdMapList ++ FcMapList,
+	Nchanged = new_map(MapList),
+	Selected = new_map(),
+	RigTypes = new_map(),
+	parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,TokensR1,TokensR).
+parse_prob(OutFD,Types,Constants,[_|Tokens]) =>
+    parse_prob(OutFD,Types,Constants,Tokens).
+	
+parse_prob(OutFD,['(',':',objects|Tokens]) =>
+	parse_object([],Objs,Tokens,TokensR),
+	if (list(Objs)) then
+		print(OutFD,"    Init = $[\n"),
+		LastEl = max(Objs),
+		foreach	((El,Type) in Objs)
+			printf(OutFD,"        %w(%w)",Type,to_lowercase(atom_chars(El))),
+			if((El,Type)!=LastEl) then
+				printf(OutFD,",\n")
+			end
+		end,
+		parse_init_rest(OutFD,tail(tail(tail (TokensR))),Tokens1),
+		print(OutFD,"],\n"),
+		parse_prob(OutFD,Tokens1)
+	else
+		parse_prob(OutFD,Tokens)
+	end.
+
+
+parse_prob(OutFD,['(',':','INIT'|Tokens]) =>
+    parse_prob(OutFD,['(',':',init|Tokens]).
+parse_prob(OutFD,['(',':',init|Tokens]) =>
+    print(OutFD,"    Init = $[\n"),
+    parse_init(OutFD,Tokens,Tokens1),
+    print(OutFD,"],\n"),
+    parse_prob(OutFD,Tokens1).
+parse_prob(OutFD,['(',':','GOAL'|Tokens]) =>
+    parse_prob(OutFD,['(',':',goal|Tokens]).
+parse_prob(OutFD,['(',':',goal|Tokens]) =>
+    print(OutFD,"    Goal = $[\n"),
+    parse_goal(OutFD,Tokens,Tokens1),
+    print(OutFD,"],\n").
+parse_prob(OutFD,[_|Tokens]) =>
+    parse_prob(OutFD,Tokens).
+
+
+	
+parse_prob_fc(Fcs,FRigids,FcTypes,['(',':','functions'|Tokens],TokensR) =>
+	parse_functions(Fcs,FRigids,FcTypes,Tokens,TokensR).
+	
+parse_prob_fc(OutFD,Types,FRigids,Tokens,TokensR) => TokensR = Tokens.
+
+parse_constants(Constants,Cs,[')'|Tokens],TokensR) => TokensR = Tokens.
+parse_constants(Constants,Cs,['-',Type|Tokens],TokensR) =>
+	put(Constants,Type,Cs),
+	parse_constants(Constants,[],Tokens,TokensR).
+parse_constants(Constants,Cs,[K|Tokens],TokensR) =>
+	parse_constants(Constants,[K|Cs],Tokens,TokensR).
+	
+	
+%Nchanged := for every non rigid predicate, numbers of operation on it
+%Pds := map of predicates and his arguments in predicate section (used like variable in picat to catch instances from input)
+%Rigids := map of rigid predicates and number of arguments
+%PdType := map Pd = list of argument types (for typing), use the same for function to
+%Selected := map, for each Pd that need "select" instead of "delete", memorize the list of [arguments] (list of lists) that are being used in select
+%RigTypes := map, required for typing, for each parameter keep a list of types that may be needed to be specified in that action in picat (i.e truck and cargo)
+	
+init_planner(OutFD,Pds,Fcs,Rigids,FRigids,Types,Constants,Tokens) =>
+	printf(OutFD,"insert_ordered_wod([],El) = ListR => ListR = [El].
+insert_ordered_wod([H|List],El) = ListR , El = H => ListR = [H|List].
+insert_ordered_wod([H|List],El) = ListR , max(El,H) = H => ListR = [El,H|List].
+insert_ordered_wod([H|List],El) = ListR , max(El,H) = El => ListR = [H] ++ insert_ordered_wod(List,El).\n\n"),
+	print(OutFD,"pddl(IFacts,GFacts) => \n  initialize_table,\n"),
+	init_state(OutFD,Pds,Fcs),
+	init_goal(OutFD,Pds,Rigids),
+	init_types(OutFD,Types,Tokens),
+	init_rigids(OutFD,Pds,Rigids,FRigids,Types,Constants),										
+	print(OutFD,"  best_plan_bb($s("),
+	Keys = sort(keys(Pds) ++ keys(Fcs)),
+	LastEl2 = max(Keys),
+	foreach(Pd in Keys)
+		printf(OutFD,"%w_INIT",Pd),
+		if(Pd != LastEl2) then
+			print(OutFD,",")
+		end
+	end,	
+	print(OutFD,"),99999999,Plan,PlanCost),\n  writeln(plan=Plan),\n  writeln(cost=PlanCost).\n\n"),
+	final_checking(OutFD,Pds,Fcs).
+
+	
+											%-------INIT THE INITIAL STATE
+init_state(OutFD,Pds,Fcs) =>
+	foreach (Pd in keys(Pds))
+		Value = get(Pds,Pd),
+		if(not (list(Value))) then
+			printf(OutFD,"  %w_INIT = sort([true : $%w in IFacts]),\n",Pd,to_lowercase(Pd))
+		else
+			if(len(Value) == 1) then
+				printf(OutFD,"  %w_INIT = sort([%w : $%w(%w) in IFacts]),\n",Pd,to_uppercase(atom_chars(min(Value))),to_lowercase(Pd),to_uppercase(atom_chars(min(Value))))
+			else
+				Svalues = sort(Value),
+				printf(OutFD,"  %w_INIT = sort([(",Pd),
+				LastEl = max(Svalues),
+				foreach(Arg in Svalues)
+					printf(OutFD,"%w",to_uppercase(atom_chars(Arg))),
+					if(Arg!=LastEl) then
+						print(OutFD,",")
+					end
+				end,
+				printf(OutFD,") : $%w(",to_lowercase(Pd)),
+				foreach(Arg in Svalues)
+					printf(OutFD,"%w",to_uppercase(atom_chars(Arg))),
+					if(Arg!=LastEl) then
+						print(OutFD,",")
+					end
+				end,
+				print(OutFD,") in IFacts]),\n")
+			end
+		end
+	end,
+	foreach (Fc in keys(Fcs))
+		Value = get(Fcs,Fc),
+		if(not (list(Value))) then
+			printf(OutFD,"  List%w = sort([res = R : $=(%w,R) in IFacts]),\n",Fc,to_lowercase(Fc))
+		else
+			if(len(Value) == 1) then
+				printf(OutFD,"  List%w = sort([%w = R : $=(%w(%w),R) in IFacts]),\n",Fc,to_uppercase(atom_chars(min(Value))),to_lowercase(Fc),to_uppercase(atom_chars(min(Value))))
+			else
+				Svalues = sort(Value),
+				printf(OutFD,"  List%w = sort([(",Fc),
+				LastEl = max(Svalues),
+				foreach(Arg in Svalues)
+					printf(OutFD,"%w",to_uppercase(atom_chars(Arg))),
+					if(Arg!=LastEl) then
+						print(OutFD,",")
+					end
+				end,
+				printf(OutFD,") = R : $=(%w(",to_lowercase(Fc)),
+				foreach(Arg in Svalues)
+					printf(OutFD,"%w",to_uppercase(atom_chars(Arg))),
+					if(Arg!=LastEl) then
+						print(OutFD,",")
+					end
+				end,
+				print(OutFD,"),R) in IFacts]),\n")
+			end
+		end,
+		printf(OutFD,"  %w_INIT = new_map(List%w),\n",Fc,Fc)
+	end.
+
+									%-----------INIT THE GOAL STATE--------
+init_goal(OutFD,Pds,Rigids) => 
+	foreach (Pd in keys(Pds))
+		Value = get(Pds,Pd),
+		if(not (list(Value))) then
+			printf(OutFD,"  %w_GOAL = sort([true : $%w in IFacts]),\n",Pd,to_lowercase(Pd))
+		else
+			if(len(Value) == 1) then
+				printf(OutFD,"  %w_GOAL = sort([%w : $%w(%w) in GFacts]),\n",Pd,to_uppercase(atom_chars(min(Value))),to_lowercase(Pd),to_uppercase(atom_chars(min(Value))))
+			else
+				Svalues = sort(Value),
+				printf(OutFD,"  %w_GOAL = sort([(",Pd),
+				LastEl = max(Svalues),
+				foreach(Arg in Svalues)
+					printf(OutFD,"%w",to_uppercase(atom_chars(Arg))),
+					if(Arg!=LastEl) then
+						print(OutFD,",")
+					end
+				end,
+				printf(OutFD,") : $%w(",to_lowercase(Pd)),
+				foreach(Arg in Svalues)
+					printf(OutFD,"%w",to_uppercase(atom_chars(Arg))),
+					if(Arg!=LastEl) then
+						print(OutFD,",")
+					end
+				end,
+				print(OutFD,") in GFacts]),\n")
+			end
+		end
+	end.
+	
+									%---------CREATING A LIST FOR EACH TYPE PRESENT IN A FORALL CONDITION
+init_types(OutFD,Types,Tokens) , typing(type) , check_forall([],Ftypes,Tokens), list(Ftypes), len(Ftypes) > 0 => 
+	foreach (Value in Ftypes)
+		printf(OutFD,"  %w_list = sort([X : $%w(X) in IFacts]),\n",to_uppercase(atom_chars(Value)),Value),
+		printf(OutFD,"  cl_facts([$%w_list(%w_list)],[]),\n",Value,to_uppercase(atom_chars(Value)))
+	end.
+	
+init_types(OutFD,Types,Tokens) => true.
+
+check_forall(Ftypes,FtypesR,[]) => FtypesR = Ftypes.
+check_forall(Ftypes,FtypesR,['forall','(','?',Atr,'-',Type|Tokens]) , not (member(Type,Ftypes))=>
+	Ftypes1 = insert_ordered(Ftypes,Type),
+	check_forall(Ftypes1,FtypesR,Tokens).	
+check_forall(Ftypes,FtypesR,[_|Tokens]) => 
+	check_forall(Ftypes,FtypesR,Tokens).
+	
+	
+
+
+										%-----------INIT THE RIGID PREDICATES
+init_rigids(OutFD,Pds,Rigids,FRigids,Types,Constants) =>
+	print(OutFD,"  Facts = [Fact : Fact in IFacts, (\n"),
+	if(map(Types)) then
+		Keys = keys(Types),
+		Flag := true,
+		foreach(Key in Keys)
+			Type = get(Types,Key),
+			if(Type==leaf,Key!='Boolean') then
+				if(Flag) then
+					printf(OutFD,"    Fact = $%w(_)",Key),
+					Flag := false
+				else
+					printf(OutFD,";\n    Fact = $%w(_)",Key)
+				end
+			end
+		end
+	end,
+	Flag := true,
+	if(size(Rigids)>0) then
+		if (not(Flag);map(Types)) then
+			printf(OutFD,";\n"),
+			Flag := false
+		end,
+		LastEl1 = max(keys(Rigids)),
+		foreach(Pd in sort(keys(Rigids)))
+			printf(OutFD,"    Fact = $%w(",Pd),
+			Counter = get(Rigids,Pd),
+			while(Counter > 0)
+				print(OutFD,"_"),
+				if(Counter > 1) then
+					print(OutFD,",")
+					end,
+			Counter := Counter - 1
+			end,
+			print(OutFD,")"),
+			if(Pd != LastEl1) then
+				print(OutFD,";")
+			end,
+			print(OutFD,"\n")
+		end
+	end,
+	print(OutFD,"  )],\n"),
+	foreach(Key in keys(Constants))
+		printf(OutFD,"  %w_CONSTANTS = [",to_uppercase(atom_chars(Key))),
+		Cs = get(Constants,Key),
+		Max = max (Cs),
+		foreach(El in sort(Cs)) 
+			printf(OutFD,"$%w(%w)",Key,El),
+			if(El != Max) then
+				printf(OutFD,",")
+			end
+		end,
+		printf(OutFD,"],\n")
+	end,
+	print(OutFD,"  cl_facts([$goal("),
+	LastEl2 = max(keys(Pds)),
+	foreach(Pd in sort(keys(Pds)))
+		printf(OutFD,"%w_GOAL",Pd),
+		if(Pd != LastEl2) then
+			print(OutFD,",")
+		end
+	end,
+	printf(OutFD,")|Facts"),
+	foreach(Key in keys(Constants))
+		printf(OutFD,"++%w_CONSTANTS",to_uppercase(atom_chars(Key)))
+	end,
+	printf(OutFD,"],[]),\n").
+	
+														%---------------FINAL CHECKING-----------------
+final_checking(OutFD,Pds,Fcs) =>
+	Keys = sort(keys(Pds) ++ keys(Fcs)),
+	print(OutFD,"final(s("),
+	LastEl2 = max(Keys),
+	foreach(Pd in Keys)
+		printf(OutFD,"%w",Pd),
+		if(Pd != LastEl2) then
+			print(OutFD,",")
+		end
+	end,												
+	print(OutFD,")), goal("),
+	LastEl3 = max(keys(Pds)),
+	foreach(Pd in sort(keys(Pds)))
+		printf(OutFD,"%w_GOAL",Pd),
+		if(Pd != LastEl3) then
+			print(OutFD,",")
+		end
+	end,
+	printf(OutFD,"),"),
+	foreach(Pd in sort(keys(Pds)))
+		printf(OutFD,"\n subset(%w_GOAL,%w)",Pd,Pd),
+		if(Pd != LastEl3) then
+			print(OutFD,",")
+		end
+	end,
+	printf(OutFD,"  => \ntrue.").
+
+												%---------TYPES PARSING-----------------
+parse_types(Types,[],[')'|Tokens],TokensR) => TokensR=Tokens.
+												
+parse_types(Types,Extended,[')'|Tokens],TokensR) => 
+	foreach(T in Extended)
+		put(Types,T,leaf)
+	end,
+	put(Types,object,Extended),
+	TokensR = Tokens.
+												
+parse_types(Types,Extended,['-','object',')'|Tokens],TokensR) => 
+	foreach(T in Extended)
+		put(Types,T,leaf)
+	end,
+	put(Types,object,Extended),
+	TokensR = Tokens.
+parse_types(Types,Extended,['-','object'|Tokens],TokensR) => 
+	foreach(T in Extended)
+		put(Types,T,leaf)
+	end,
+	put(Types,object,Extended),
+	parse_types(Types,[],Tokens,TokensR).
+
+
+parse_types(Types,Extended,['-',Name|Tokens],TokensR) => 
+	foreach(T in Extended)
+		if not (member(T,keys(Types))) then
+			put(Types,T,leaf)
+			end
+	end,
+	put(Types,Name,Extended),
+	parse_types(Types,[],Tokens,TokensR).
+
+parse_types(Types,Extended,[Type|Tokens],TokensR) => 
+	parse_types(Types,[Type|Extended],Tokens,TokensR).
+
+												%----------PREDICATES PARSING-----------------
+												
+parse_predicates(Pds,Rigids,PdTypes,[')'|Tokens],TokensR) => TokensR=Tokens.
+
+parse_predicates(Pds,Rigids,PdTypes,['(',Name|Tokens],TokensR), check_rigidpd_action(Name,Tokens) =>
+	upper(Name,UName),
+	parse_pdarg([],ArgsR,UName,PdTypes,[],Tokens,TokensR1),
+	if(len(ArgsR)>0) then
+		put(Pds,UName,ArgsR)
+	else
+		put(Pds,UName,0)									%----predicates without arguments case
+	end,
+	parse_predicates(Pds,Rigids,PdTypes,TokensR1,TokensR).
+	
+parse_predicates(Pds,Rigids,PdTypes,['(',Name|Tokens],TokensR) =>
+	upper(Name,UName),
+	parse_pdarg([],ArgsR,UName,PdTypes,[],Tokens,TokensR1),
+	put(Rigids,Name,len(ArgsR)),
+	parse_predicates(Pds,Rigids,PdTypes,TokensR1,TokensR).
+
+%----------------------------------------------------the last predicate
+parse_pdarg(Args,ArgsR,UName,PdTypes,ArgsType,[')',')','(',':',ActOrFc|Tokens],TokensR), typing(type) , (ActOrFc='action';ActOrFc='functions')=> 
+	TokensR=[')','(',':',ActOrFc|Tokens],
+	ArgsR=Args,
+	ArgsArray = new_array(len(ArgsType)),
+	Counter := 1,
+	foreach (Type in ArgsType)
+		ArgsArray[Counter] = Type,
+		Counter := Counter + 1
+	end,
+	put(PdTypes,UName,ArgsArray).
+
+parse_pdarg(Args,ArgsR,UName,PdTypes,ArgsType,[')',')','(',':',ActOrFc|Tokens],TokensR) => TokensR=[')','(',':',ActOrFc|Tokens], (ActOrFc='action';ActOrFc='functions'), ArgsR=Args. %the last predicate	
+
+%----------------------------------------------------the case when I use either
+parse_pdarg(Args,ArgsR,UName,PdTypes,ArgsType,[')',')'|Tokens],TokensR), typing(type) => 
+	TokensR=Tokens,
+	ArgsR=Args,
+	ArgsArray = new_array(len(ArgsType)),
+	Counter := 1,
+	foreach (Type in ArgsType)
+		ArgsArray[Counter] = Type,
+		Counter := Counter + 1
+	end,
+	put(PdTypes,UName,ArgsArray).
+
+%----------------------------------------------------all the other predicates (the normal case)
+parse_pdarg(Args,ArgsR,UName,PdTypes,ArgsType,[')'|Tokens],TokensR), typing(type) => 
+	TokensR=Tokens,
+	ArgsR=Args,
+	ArgsArray = new_array(len(ArgsType)),
+	Counter := 1,
+	foreach (Type in ArgsType)
+		ArgsArray[Counter] = Type,
+		Counter := Counter + 1
+	end,
+	put(PdTypes,UName,ArgsArray).
+parse_pdarg(Args,ArgsR,UName,PdTypes,ArgsType,[')'|Tokens],TokensR) => TokensR=Tokens, ArgsR=Args.		
+	
+parse_pdarg(Args,ArgsR,UName,PdTypes,ArgsType,[?,Arg|Tokens],TokensR), typing(type) =>
+	Index = len(Args),
+	Args1 = insert(Args,Index+1,Arg),
+	Type = find_type(Tokens),
+	ArgsType1 = insert(ArgsType,Index+1,Type),
+	parse_pdarg(Args1,ArgsR,UName,PdTypes,ArgsType1,Tokens,TokensR).
+parse_pdarg(Args,ArgsR,UName,PdTypes,ArgsType,[?,Arg|Tokens],TokensR) =>
+	Index = len(Args),
+	Args1 = insert(Args,Index+1,Arg),
+	parse_pdarg(Args1,ArgsR,UName,PdTypes,ArgsType,Tokens,TokensR).
+
+parse_pdarg(Arg,ArgsR,UName,PdTypes,ArgsType,[_|Tokens],TokensR), typing(type) => 
+	parse_pdarg(Arg,ArgsR,UName,PdTypes,ArgsType,Tokens,TokensR).
+parse_pdarg(Arg,ArgsR,UName,PdTypes,ArgsType,[_|Tokens],TokensR) => 
+	parse_pdarg(Arg,ArgsR,UName,PdTypes,ArgsType,Tokens,TokensR).
+	
+find_type(['-','(','either'|Tokens]) = R =>
+	find_either_types(Tokens,[],Types),
+	R = Types.
+find_type(['-',Type|Tokens]) = R => R = Type.
+find_type([_|Tokens]) = R => R = find_type(Tokens).
+
+find_either_types([')'|Tokens],Types,TypesR) => TypesR = Types.
+find_either_types([Type|Tokens],Types,TypesR) => find_either_types(Tokens,[Type|Types],TypesR).
+	
+check_rigidpd_action(Name,[':','effect'|Tokens]) =>
+	check_rigidpd_effect(Name,Tokens).
+check_rigidpd_action(Name,[_|Tokens]) => 
+	check_rigidpd_action(Name,Tokens).
+	
+check_rigidpd_effect(Name,['(',Pd|Tokens]),Name == Pd =>
+	true.
+check_rigidpd_effect(Name,[':','action'|Tokens]) =>
+	check_rigidpd_action(Name,Tokens).
+check_rigidpd_effect(Name,[_|Tokens]) =>
+	check_rigidpd_effect(Name,Tokens).
+	
+									%----------FUNCTIONS PARSING-----------------
+%I use the same functions pd_args because i am not interested in the return type, I only need the parameters type
+												
+parse_functions(Fcs,FRigids,FcTypes,[')'|Tokens],TokensR) => TokensR=Tokens.
+
+parse_functions(Fcs,FRigids,FcTypes,['(','total_cost',')','-','number'|Tokens],TokensR) => parse_functions(Fcs,FRigids,FcTypes,Tokens,TokensR).
+parse_functions(Fcs,FRigids,FcTypes,['(','total_cost',')'|Tokens],TokensR) =>  parse_functions(Fcs,FRigids,FcTypes,Tokens,TokensR).
+
+/*
+parse_functions(Fcs,FRigids,FcTypes,['(',Name|Tokens],TokensR) =>
+	upper(Name,UName),
+	parse_pdarg([],ArgsR,UName,FcTypes,[],Tokens,Tokens1),
+	put(FRigids,Name,len(ArgsR)),
+	TokensR1 = tail(tail(Tokens1)),
+	parse_functions(Fcs,FRigids,FcTypes,TokensR1,TokensR).*/
+	
+parse_functions(Fcs,FRigids,FcTypes,['(',Name|Tokens],TokensR) =>
+	upper(Name,UName),
+	parse_pdarg([],ArgsR,UName,FcTypes,[],Tokens,Tokens1),
+	if (len(ArgsR)>0) then
+		put(Fcs,UName,ArgsR)
+	else
+		put(Fcs,UName,0)
+	end,
+	TokensR1 = tail(tail(Tokens1)),
+	parse_functions(Fcs,FRigids,FcTypes,TokensR1,TokensR).
+	
+	
+												%----------ACTION PARSING-----------------
+parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,[')',Tokens],TokensR) => TokensR=Tokens.
+
+parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,['(',':','action',NewName|Tokens],TokensR) =>
+	print(OutFD,"\n\naction(s("),
+	LastEl = max(keys(Nchanged)),
+	foreach (Pd in sort(keys(Nchanged)))
+		printf(OutFD,"%w0",Pd),
+		if (Pd != LastEl) then
+			print(OutFD,",")
+			end
+		end,		
+	print(OutFD,"),NextState, Action, Cost),\n"),
+	parse_action(OutFD,NewName,Par,Nchanged,Selected,Types,PdTypes,RigTypes,Tokens,TokensR).
+	
+parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,[':','parameters','('|Tokens],TokensR) =>
+	BoundingPar = new_map(),
+	parse_parameters(OutFD,[],ParR,Types,PdTypes,RigTypes,BoundingPar,Tokens,Tokens1),
+	check_bounding(BoundingPar,no,Tokens1,[],TokensInitR),
+	parse_action(OutFD,Name,ParR,Nchanged,Selected,Types,PdTypes,RigTypes,TokensInitR,TokensR).
+	
+parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,[':','precondition'|Tokens],TokensR) =>
+	foreach(Key in keys(Nchanged))
+		put(Nchanged,Key,0)
+	end,
+	Keys = keys(RigTypes),
+	foreach (Key in Keys)
+		Values = get(RigTypes,Key),
+		Counter := len(Values),
+		if(Counter>1) then
+			printf(OutFD,"(")
+		end,
+		foreach(T in Values)
+			upper(Key,UKey),
+			printf(OutFD,"%w(%w)",T,UKey),
+			Counter := Counter - 1,
+			if(Counter > 0) then
+				printf(OutFD,";")
+			end
+		end,
+		if(len(Values)>1) then
+			printf(OutFD,")")
+		end,
+		printf(OutFD,",\n")
+	end,	
+	clear(RigTypes),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	if check_unbound_params(Tokens1) then
+		parse_preconditions(OutFD,Nchanged,Selected,Tokens1,TokensR1),
+		parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,TokensR1,TokensR)
+	else
+		parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,Tokens1,TokensR)
+	end.
+	
+	
+parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,[':','effect'|Tokens],TokensR) =>
+	print(OutFD,"\n?=>\n"),
+	parse_effects(OutFD,Nchanged,Selected,Cost,Tokens,TokensR1),
+	print(OutFD,"NextState = $s("),
+	LastEl = max(keys(Nchanged)),
+	foreach (Pd in sort(keys(Nchanged)))
+		printf(OutFD,"%w%d",Pd,get(Nchanged,Pd)),
+		if (Pd != LastEl) then
+			print(OutFD,",")
+			end
+		end,
+	printf(OutFD,"),\nAction = $act_%w",Name),
+	if(len(Par)>0) then
+	printf(OutFD,"("),
+	LastEl1 = max(Par),
+		foreach (P in Par)
+			write_argument(OutFD,P),
+			if (P != LastEl1) then
+				print(OutFD,",")
+			end
+		end,
+		printf(OutFD,")"),
+	end,
+	if(integer(Cost)) then
+		printf(OutFD,",\nCost=%w.\n",Cost)
+	else
+		if(string(Cost)) then
+			printf(OutFD,",\nCost=%s.\n",Cost)
+		else
+			print(OutFD,",\nCost=1.\n")
+		end
+	end,
+	clear(Selected),
+	parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,TokensR1,TokensR).
+	
+parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,[_|Tokens],TokensR) =>
+    parse_action(OutFD,Name,Par,Nchanged,Selected,Types,PdTypes,RigTypes,Tokens,TokensR).
+
+createMap(Nchanged,NchangedR,[]) => NchangedR = Nchanged.
+createMap(Nchanged,NchangedR,[Pd|Pds]) =>
+	El = $Pd=0,
+	Nchanged1 = insert_ordered(Nchanged,El),
+	createMap(Nchanged1,NchangedR,Pds).
+	
+check_unbound_params(['/'|Tokens]) => true.
+													
+
+													%-----------VERIFY IF VARIABLES INSIDE A NEGATION ARE BOUND
+check_bounding(BoundingPar,NotFlag,[':','effect'|Tokens],TokensInit,TokensInitR) =>
+	%if at the end of precontionds analysis some parameters are still unbound(maybe due to a forall when in the effect section), we must bind it
+	bind_last(keys(BoundingPar),BoundingPar,[],TokensR),
+	TokensInitR = TokensInit ++ TokensR ++ [')',':','effect'|Tokens].															
+check_bounding(BoundingPar,NotFlag,['(','not'|Tokens],TokensInit,TokensInitR) => 
+	check_var(BoundingPar,0,NotFlag,Tokens,[],PreTokensR,[],PostTokensR,TokensR),
+	check_bounding(BoundingPar,NotFlag,TokensR,TokensInit++PreTokensR++ ['(','not']++PostTokensR,TokensInitR).
+check_bounding(BoundingPar,NotFlag,['(','='|Tokens],TokensInit,TokensInitR) => 
+	check_var(BoundingPar,0,NotFlag,Tokens,[],PreTokensR,[],PostTokensR,TokensR),
+	check_bounding(BoundingPar,NotFlag,TokensR,TokensInit++PreTokensR++ ['(','=']++PostTokensR,TokensInitR).
+check_bounding(BoundingPar,NotFlag,['(','forall','(','?',Var,'-',Type,')','(','not'|Tokens],TokensInit,TokensInitR) => 
+	put(BoundingPar,Var,bounded),
+	check_var(BoundingPar,1,NotFlag,Tokens,[],PreTokensR,[],PostTokensR,TokensR),
+	check_bounding(BoundingPar,NotFlag,TokensR,TokensInit++PreTokensR++ ['(','forall','(','?',Var,'-',Type,')','(','not'] ++ PostTokensR,TokensInitR).
+check_bounding(BoundingPar,NotFlag,['?',Var|Tokens],TokensInit,TokensInitR) =>
+	put(BoundingPar,Var,bounded),
+	check_bounding(BoundingPar,NotFlag,Tokens,TokensInit++['?',Var],TokensInitR).
+check_bounding(BoundingPar,no,['(','and'|Tokens],TokensInit,TokensInitR) =>
+	check_bounding(BoundingPar,yes,Tokens,TokensInit++['(','and'],TokensInitR).
+check_bounding(BoundingPar,NotFlag,[Token|Tokens],TokensInit,TokensInitR) =>
+	check_bounding(BoundingPar,NotFlag,Tokens,TokensInit++[Token],TokensInitR).
+
+% -PreTokens: list of preconditions I may put before the not for bind the variables in it
+% -TokensR: Tokens after the not condition, they may change due to the above preconditions movement
+% -PostTokens: Tokens inside the not condition
+	
+check_var(BoundingPar,0,NotFlag,[')'|Tokens],PreTokens,PreTokensR,PostTokens,PostTokensR,TokensR) =>  PostTokensR = PostTokens ++ [')'], PreTokensR = PreTokens, TokensR = Tokens.
+check_var(BoundingPar,Round,NotFlag,[')'|Tokens],PreTokens,PreTokensR,PostTokens,PostTokensR,TokensR) => 
+	check_var(BoundingPar,Round-1,NotFlag,Tokens,PreTokens,PreTokensR,PostTokens++[')'],PostTokensR,TokensR).				
+check_var(BoundingPar,Round,NotFlag,['?',Var|Tokens],PreTokens,PreTokensR,PostTokens,PostTokensR,TokensR), get(BoundingPar,Var) == bounded =>
+	check_var(BoundingPar,Round,NotFlag,Tokens,PreTokens,PreTokensR,PostTokens++['?',Var],PostTokensR,TokensR).	
+check_var(BoundingPar,Round,NotFlag,['?',Var|Tokens],PreTokens,PreTokensR,PostTokens,PostTokensR,TokensR) =>
+	skip_not(Round,Tokens,TokensR1,[],TokensbNotR),
+	find_bound_pd(BoundingPar,Var,TokensR1,TokenRes,[],PreTokensFinR,TokensFin),
+	%if tokenres is empty, I need to bind the var declaring its type (cause is not possible bounding it by reordering the preconditions)
+	if not(list(TokenRes)) then		
+		(A,B) = get(BoundingPar,Var),
+		if NotFlag = yes then
+			TokenRes = [/,B,Var]
+		else
+			TokenRes = [/,/,B,Var]
+		end
+	end,
+	put(BoundingPar,Var,bounded),
+	check_var(BoundingPar,Round,NotFlag,TokensbNotR++PreTokensFinR++TokensFin,TokenRes++PreTokens,PreTokensR,PostTokens++['?',Var],PostTokensR,TokensR).
+check_var(BoundingPar,Round,NotFlag,['('|Tokens],PreTokens,PreTokensR,PostTokens,PostTokensR,TokensR) =>
+	check_var(BoundingPar,Round+1,NotFlag,Tokens,PreTokens,PreTokensR,PostTokens++['('],PostTokensR,TokensR).
+check_var(BoundingPar,Round,NotFlag,[Token|Tokens],PreTokens,PreTokensR,PostTokens,PostTokensR,TokensR) =>
+	check_var(BoundingPar,Round,NotFlag,Tokens,PreTokens,PreTokensR,PostTokens++[Token],PostTokensR,TokensR).
+	
+
+find_bound_pd(BoundingPar,Var,[')'|Tokens],TokensRes,PreTokensFin,PreTokensFinR,TokensFin) =>  PreTokensFinR = PreTokensFin ++ [')'], TokensFin = Tokens.
+find_bound_pd(BoundingPar,Var,[':','effect'|Tokens],TokensRes,PreTokensFin,PreTokensFinR,TokensFin) =>  PreTokensFinR = PreTokensFin ++ [':','effect'], TokensFin = Tokens.
+find_bound_pd(BoundingPar,Var,['(',Name|Tokens],TokensRes,PreTokensFin,PreTokensFinR,TokensFin), Name!=not, Name!=and, Name!='=', Name!=forall, find_bound_var(Var,0,Tokens) =>
+	skip_not(0,Tokens,TokensR,['(',Name],PdTokens),
+	bind_params(BoundingPar,PdTokens),
+	TokensRes = PdTokens,
+	PreTokensFinR = PreTokensFin,
+	TokensFin = TokensR.
+find_bound_pd(BoundingPar,Var,['(',Name|Tokens],TokensRes,PreTokensFin,PreTokensFinR,TokensFin) =>
+	skip_not(0,Tokens,TokensRest,['(',Name],PdTokens),
+	find_bound_pd(BoundingPar,Var,TokensRest,TokensRes,PreTokensFin++PdTokens,PreTokensFinR,TokensFin).
+	
+	
+find_bound_var(Var,0,[')'|Tokens]) => false.
+find_bound_var(Var,Round,[')'|Tokens]) => find_bound_var(Var,Round-1,Tokens).
+find_bound_var(Var,Round,['('|Tokens]) => find_bound_var(Var,Round+1,Tokens).
+find_bound_var(Var,Round,['?',Var|Tokens]) =>
+	true.
+find_bound_var(Var,Round,[_|Tokens]) => find_bound_var(Var,Round,Tokens).
+
+bind_params(BoundingPar,[')'|Tokens]) => true.
+bind_params(BoundingPar,['?',Var|Tokens]) =>
+	put(BoundingPar,Var,bounded),
+	bind_params(BoundingPar,Tokens).
+bind_params(BoundingPar,[_|Tokens]) => bind_params(BoundingPar,Tokens).
+
+bind_last([],BoundingPar,Tokens1,TokensR) => TokensR = Tokens1.
+bind_last([Var|List],BoundingPar,Tokens1,TokensR), get(BoundingPar,Var) = bounded =>
+	bind_last(List,BoundingPar,Tokens1,TokensR).
+bind_last([Var|List],BoundingPar,Tokens1,TokensR) =>
+	(A,B) = get(BoundingPar,Var),
+	Tokens2 = Tokens1 ++ [/,/,/,B,Var],
+	put(BoundingPar,Var,bounded),
+	bind_last(List,BoundingPar,Tokens2,TokensR).
+	
+
+	
+												%------------PARAMETERS PARSING-----------------
+parse_parameters(OutFD,Par,ParR,Types,PdTypes,RigTypes,BoundingPar,[')'|Tokens],TokensR) => TokensR=Tokens, ParR=Par.
+parse_parameters(OutFD,Par,ParR,Types,PdTypes,RigTypes,BoundingPar,['-',Type|Tokens],TokensR) => 
+	parse_parameters(OutFD,Par,ParR,Types,PdTypes,RigTypes,BoundingPar,Tokens,TokensR).
+parse_parameters(OutFD,Par,ParR,Types,PdTypes,RigTypes,BoundingPar,['?',Name|Tokens],TokensR), typing(type) =>
+	Par1 = insert_ordered(Par,Name),
+	Type = find_type(Tokens),
+	check_needed_type_prec(Name,Types,PdTypes,[],ListRes,Tokens),
+	expandList([Type],[],ListR,Types),                           %check if the type of the parameter (in :parameters section) is leaf, it's not got his sons
+	if(ListR!=ListRes,len(ListRes)>0) then          						%in this case I have subset(ListR,ListRes), so I need to use rigid pd for the types in ListR
+			put(RigTypes,Name,ListR),
+			put(BoundingPar,Name,bounded)												%Must verify if all parameters are bound: the RigTypes one of course
+	else														%otherwise I determinated the possibile types of the parameter only by predicates, so no need to use rigid pd for typing in picat
+		put(BoundingPar,Name,(notb,ListR))
+	end,
+	parse_parameters(OutFD,Par1,ParR,Types,PdTypes,RigTypes,BoundingPar,Tokens,TokensR).
+parse_parameters(OutFD,Par,ParR,Types,PdTypes,RigTypes,BoundingPar,['?',Name|Tokens],TokensR) =>
+	Par1 = insert_ordered(Par,Name),
+	put(BoundingPar,Name,notb),
+	parse_parameters(OutFD,Par1,ParR,Types,PdTypes,RigTypes,BoundingPar,Tokens,TokensR).
+
+
+check_needed_type_prec(Par1,Types,PdTypes,List,ListRes,[':','precondition'|Tokens]) => check_needed_type(Par1,Types,PdTypes,List,ListRes,Tokens) .
+check_needed_type_prec(Par1,Types,PdTypes,List,ListRes,[_|Tokens]) => check_needed_type_prec(Par1,Types,PdTypes,List,ListRes,Tokens).
+
+%-------this function control (in the precondition) if I need to use a rigit predicate to force the typing of the parameter
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(',':','action'|Tokens]) => ListRes = List.			%ListRes intersections of all types lists of Predicate where Par appear
+check_needed_type(Par,Types,PdTypes,List,ListRes,[]) => ListRes = List.
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(','and'|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(','or'|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(','not'|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(','forall','(','?',P,'-',T,')'|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(','when'|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(','decrease'|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(','increase'|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(','='|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+check_needed_type(Par,Types,PdTypes,List,ListRes,['(',Predicate|Tokens]) , check_typing_par(Par,1,IndexR,Tokens) =>
+	LeavesList = findLeaves(Types,PdTypes,Predicate,IndexR),
+	if(len(List)>0) then
+		List1 = [El : El in LeavesList, El in List]
+	else
+		List1 = LeavesList
+	end,
+	check_needed_type(Par,Types,PdTypes,List1,ListRes,Tokens).
+
+check_needed_type(Par,Types,PdTypes,List,ListRes,[':','effect'|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).      
+check_needed_type(Par,Types,PdTypes,List,ListRes,[_|Tokens]) => check_needed_type(Par,Types,PdTypes,List,ListRes,Tokens).
+
+
+findLeaves(Types,PdTypes,Predicate,IndexR) = R , upper(Predicate,UPredicate)=> 
+	TypeArray = get(PdTypes,UPredicate),								%type can be either a leaf or not, we must discover
+	Type = TypeArray[IndexR],
+	expandList([Type],[],ListR,Types),
+	R = ListR.				
+
+expandList([],List,ListR,Types) => ListR = List.
+expandList([Type|TypeR],List,ListR,Types) ,  list(Type) =>		%this is the case of 'either' construct, where we have a list of objs instead of a leaf or a node
+		expandList(Type++TypeR,List,ListR,Types).		
+															
+expandList([Type|TypeR],List,ListR,Types) , Ris = get(Types,Type) =>
+		if Ris != leaf then
+			expandList(Ris ++ TypeR,List, ListR,Types)			%if Type it's not a leaf, I must check all his sons(Ris) too 
+		else
+			expandList(TypeR,[Type|List],ListR,Types)		%I insert Type into the Results list(List) only when it is a leaf
+		end.
+
+		
+
+		
+												
+check_typing_par(Par,Index,IndexR,['?',Par1|Tokens]), Par=Par1 =>  IndexR = Index.
+check_typing_par(Par,Index,IndexR,['?',Par1|Tokens]) => check_typing_par(Par,Index+1,IndexR,Tokens).
+check_typing_par(Par,Index,IndexR,['-',Type|Tokens]) => check_typing_par(Par,Index,IndexR,Tokens).
+%function
+check_typing_par(Par,Index,IndexR,['(',Fc|Tokens]) => skip_function(Tokens,TokensR), check_typing_par(Par,Index+1,IndexR,TokensR).
+check_typing_par(Par,Index,IndexR,[')'|Tokens]) => false.
+%constant
+check_typing_par(Par,Index,IndexR,[Par1|Tokens]) => check_typing_par(Par,Index+1,IndexR,Tokens).		
+
+skip_function([')'|Tokens],TokensR) => TokensR=Tokens.
+skip_function([_|Tokens],TokensR) => skip_function(Tokens,TokensR).
+%if I found a innested function
+skip_function(['('|Tokens],TokensR) => skip_function(Tokens,Tokens1), skip_function(Tokens1,TokensR).
+
+
+
+												%------------PRECONDITIONS PARSING-----------------
+parse_preconditions(OutFD,Nchanged,Selected,[')'|Tokens],TokensR) => TokensR=Tokens.
+parse_preconditions(OutFD,Nchanged,Selected,['(','and'|Tokens],TokensR)=>
+	parse_first_preconditions_and(OutFD,Nchanged,Selected,Tokens,TokensR).
+parse_preconditions(OutFD,Nchanged,Selected,['(','or'|Tokens],TokensR)=>
+	print(OutFD,"("),
+	parse_first_preconditions_or(OutFD,Nchanged,Selected,Tokens,TokensR),
+	print(OutFD,")").
+
+%it seems forall is implicit in picat with not 
+parse_preconditions(OutFD,Nchanged,Selected,['(','forall','(','?',Var,'-',Type,')','(','not'|Tokens],TokensR)=>
+	printf(OutFD,"%w_list(%w_list),\n",Type,to_uppercase(atom_chars(Type))),
+	printf(OutFD,"foreach (%w in %w_list) not(\n",to_uppercase(atom_chars(Var)),to_uppercase(atom_chars(Type))),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	printf(OutFD,")\nend"),
+	TokensR = tail(tail(Tokens1)).
+	
+	
+parse_preconditions(OutFD,Nchanged,Selected,['(','forall','(','?',Var,'-',Type|Tokens],TokensR)=>
+	printf(OutFD,"%w_list(%w_list),\n",Type,to_uppercase(atom_chars(Type))),
+	printf(OutFD,"foreach (%w in %w_list)\n",to_uppercase(atom_chars(Var)),to_uppercase(atom_chars(Type))),
+	parse_forall(OutFD,Nchanged,Selected,Tokens,TokensR),
+	printf(OutFD,"\nend").
+
+parse_preconditions(OutFD,Nchanged,Selected,['/','/','/',[Type],Var|Tokens],TokensR) =>
+	printf(OutFD,",\n%w(%w)",Type,to_uppercase(atom_chars(Var))),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,TokensR).
+	
+parse_preconditions(OutFD,Nchanged,Selected,['/','/',Types,Var|Tokens],TokensR), len(Types) > 1 =>
+	List = sort(Types),
+	printf(OutFD,"("),
+	Last = max(List),
+	foreach(El in List)
+		printf(OutFD,"%w(%w)",El,to_uppercase(atom_chars(Var))),
+		if(El!=Last) then
+			printf(OutFD,";")
+		end
+	end,
+	printf(OutFD,"),\n"),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,TokensR).
+
+parse_preconditions(OutFD,Nchanged,Selected,['/','/',[Type],Var|Tokens],TokensR) =>
+	printf(OutFD,"%w(%w),\n",Type,to_uppercase(atom_chars(Var))),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,TokensR).
+	
+parse_preconditions(OutFD,Nchanged,Selected,['/',Types,Var|Tokens],TokensR), len(Types) > 1 =>
+	List = sort(Types),
+	printf(OutFD,"("),
+	Last = max(List),
+	foreach(El in List)
+		printf(OutFD,"%w(%w)",El,to_uppercase(atom_chars(Var))),
+		if(El!=Last) then
+			printf(OutFD,";")
+		end
+	end,
+	printf(OutFD,")"),
+	TokensR = Tokens.
+	
+parse_preconditions(OutFD,Nchanged,Selected,['/',[Type],Var|Tokens],TokensR) =>
+	printf(OutFD,"%w(%w)",Type,to_uppercase(atom_chars(Var))),
+	TokensR = Tokens.
+	
+
+parse_preconditions(OutFD,Nchanged,Selected,['(',Predicate,')'|Tokens],TokensR),   
+	check_select(Predicate,[],Tokens),	
+	upper(Predicate,UPredicate),
+	member(UPredicate,keys(Nchanged))
+=>	
+	Pd = get(Nchanged,UPredicate),
+	NewPd = Pd + 1,
+	printf(OutFD,"select(true,%w%d,%w%d)",UPredicate,Pd,UPredicate,NewPd),
+	put(Nchanged,UPredicate,NewPd),
+	put(Selected,UPredicate,[]),
+	TokensR = Tokens.
+	
+parse_preconditions(OutFD,Nchanged,Selected,['(',Predicate,')'|Tokens],TokensR), upper(Predicate,UPredicate), member(UPredicate,keys(Nchanged))	=>	
+	printf(OutFD,"member(true,%w0)",UPredicate),
+	TokensR = Tokens.
+
+parse_preconditions(OutFD,Nchanged,Selected,['(',Predicate|Tokens],TokensR), upper(Predicate,UPredicate), member(UPredicate,keys(Nchanged)), 
+	check_arguments([],Args,Tokens),
+	check_select(Predicate,Args,Tokens) 
+=>
+	Pd = get(Nchanged,UPredicate),
+	NewPd = Pd + 1,
+	printf(OutFD,"select(("),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensR),
+	put(Nchanged,UPredicate,NewPd),
+	ArgList = get(Selected,UPredicate,empty),
+	if (ArgList = empty) then
+		put(Selected,UPredicate,Args)
+	else
+		put(Selected,UPredicate,[Args,ArgList])
+	end,
+	printf(OutFD,"),%w%d,%w%d)",UPredicate,Pd,UPredicate,NewPd).
+	
+parse_preconditions(OutFD,Nchanged,Selected,['(',Predicate|Tokens],TokensR), upper(Predicate,UPredicate), member(UPredicate,keys(Nchanged)) =>
+	print(OutFD,"member(("),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensR),
+	printf(OutFD,"),%w0)",UPredicate).
+	
+parse_preconditions(OutFD,Nchanged,Selected,['(','not'|Tokens],TokensR) =>
+	print(OutFD,"not ("),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	parse_preconditions_not(OutFD,Nchanged,Selected,Tokens1,TokensR).
+	
+parse_preconditions(OutFD,Nchanged,Selected,['(',Predicate|Tokens],TokensR) =>
+	printf(OutFD,"%w(",Predicate),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensR),
+	print(OutFD,")").
+
+parse_preconditions_not(OutFD,Nchanged,Selected,[')'|Tokens],TokensR) =>
+	print(OutFD,")"),
+	TokensR=Tokens.
+
+	
+parse_first_preconditions_and(OutFD,Nchanged,Selected,Tokens,TokensR) =>
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	parse_preconditions_and(OutFD,Nchanged,Selected,Tokens1,TokensR).
+	
+parse_preconditions_and(OutFD,Nchanged,Selected,[')'|Tokens],TokensR) => TokensR=Tokens.
+parse_preconditions_and(OutFD,Nchanged,Selected,Tokens,TokensR) =>
+	print(OutFD,",\n"),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	parse_preconditions_and(OutFD,Nchanged,Selected,Tokens1,TokensR).
+	
+parse_first_preconditions_or(OutFD,Nchanged,Selected,Tokens,TokensR) =>
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	parse_preconditions_or(OutFD,Nchanged,Selected,Tokens1,TokensR).
+	
+parse_preconditions_or(OutFD,Nchanged,Selected,[')'|Tokens],TokensR) => TokensR=Tokens.
+parse_preconditions_or(OutFD,Nchanged,Selected,Tokens,TokensR) =>
+	print(OutFD,";\n"),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	parse_preconditions_or(OutFD,Nchanged,Selected,Tokens1,TokensR).
+	
+parse_forall(OutFD,Nchanged,Selected,[')'|Tokens],TokensR) =>
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	parse_forallLast(Selected,Tokens1,TokensR).
+parse_forall(OutFD,Nchanged,Selected,[_|Tokens],TokensR) =>
+	parse_forall(OutFD,Nchanged,Selected,Tokens,TokensR).
+
+parse_forallLast(Selected,[')'|Tokens],TokensR) => Tokens=TokensR.
+
+									%----CHECK_SELECT ADDED TO CHECK_NOT FOR AVOID THIS CONTROL IN FORALL CONDITIONS
+
+check_select(Predicate,Args,[':','effect'|Tokens]) => check_not(Predicate,Args,Tokens).
+check_select(Predicate,Args,['(',':','action'|Tokens]) => 
+	false.
+check_select(Predicate,Args,[_|Tokens]) =>
+	check_select(Predicate,Args,Tokens).
+
+check_select(Predicate,Args,[_|Tokens]) => check_select(Predicate,Args,[Tokens]).
+
+check_not(Predicate,Args,['not','(',Name|Tokens]) , Predicate == Name ,check_arguments([],Args1,Tokens), Args == Args1=>
+	true.
+check_not(Predicate,Args,['(',':','action'|Tokens]) => 
+	false.
+check_not(Predicate,Args,[_|Tokens]) =>
+	check_not(Predicate,Args,Tokens).
+
+check_arguments(Args,ArgsR,[')'|Tokens]) => ArgsR=Args. 	
+check_arguments(Args,ArgsR,['?',Arg|Tokens]) =>
+	Args1 = insert_ordered(Args,Arg),
+	check_arguments(Args1,ArgsR,Tokens).
+%constant
+check_arguments(Args,ArgsR,[Arg|Tokens]) =>
+	Args1 = insert_ordered(Args,Arg),
+	check_arguments(Args1,ArgsR,Tokens).
+	
+	
+
+	
+										%--------------EFFECT PARSING-----------------
+parse_effects(OutFD,Nchanged,Selected,Cost,[')'|Tokens],TokensR) => TokensR=Tokens.
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','and'|Tokens],TokensR)=>
+	parse_first_effects_and(OutFD,Nchanged,Selected,Cost,Tokens,TokensR).
+
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','not','(',Predicate|Tokens],TokensR), upper(Predicate,UPredicate), check_arguments([],Args,Tokens), (membchk(Args,get(Selected,UPredicate,[]));Args = get(Selected,UPredicate,false)) =>
+	skip_not(Tokens,TokensR1),
+	TokensR = tail(TokensR1).
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','not','(',Predicate,')'|Tokens],TokensR), upper(Predicate,UPredicate) =>
+	Pd = get(Nchanged,UPredicate),
+	NewPd = Pd + 1,
+	put(Nchanged,UPredicate,NewPd),
+	printf(OutFD,"%w%d = delete_all(%w%d,true),\n",UPredicate,NewPd,UPredicate,Pd),
+	TokensR = tail(Tokens).
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','not','(',Predicate|Tokens],TokensR), upper(Predicate,UPredicate) =>
+	Pd = get(Nchanged,UPredicate),
+	NewPd = Pd + 1,
+	put(Nchanged,UPredicate,NewPd),
+	printf(OutFD,"%w%d = delete(%w%d,(",UPredicate,NewPd,UPredicate,Pd),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensR1),
+	TokensR = tail(TokensR1),
+	print(OutFD,")),\n").
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','forall','(','?',Var,'-',Type,')','(','when'|Tokens],TokensR), upper(Var,UVar) =>
+	printf(OutFD,"%w_list(%w_list),\n",Type,to_uppercase(atom_chars(Type))),
+	printf(OutFD,"%w_l = [%w : %w in %w_list,",to_uppercase(atom_chars(Type)),UVar,UVar,to_uppercase(atom_chars(Type))),
+	parse_preconditions(OutFD,Nchanged,Selected,Tokens,Tokens1),
+	printf(OutFD,"],\n"),
+	parse_forall_effects(OutFD,Nchanged,Type,Var,Tokens1,TokensR1),
+	TokensR = tail(tail(TokensR1)).
+	
+
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','increase','(','total_cost',')','('|Tokens], TokensR) =>
+	parse_first_argument("",StringR,Nchanged,['('|Tokens],TokensR),
+	Cost = StringR.
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','increase','(','total_cost',')',Number,')'|Tokens], TokensR) =>
+	Cost = Number,
+	TokensR = Tokens.
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','increase','(',FcName,')'|Tokens], TokensR) , upper(FcName,UName) =>
+	printf(OutFD,"put(%w0,res",UName),
+	printf(OutFD,",get(%w0,res",UName),
+	print(OutFD,") + "),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensR),
+	print(OutFD,"),\n").
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','increase','(',FcName|Tokens], TokensR) , upper(FcName,UName) =>
+	printf(OutFD,"put(%w0,(",UName),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensAway),
+	printf(OutFD,"),get(%w0,(",UName),
+	parse_first_argument(OutFD,Nchanged,Tokens,Tokens1),
+	print(OutFD,")) + "),
+	parse_first_argument(OutFD,Nchanged,Tokens1,TokensR),
+	print(OutFD,"),\n").
+
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','decrease','(',FcName,')'|Tokens], TokensR) , upper(FcName,UName) =>
+	printf(OutFD,"put(%w0,res",UName),
+	printf(OutFD,",get(%w0,res",UName),
+	print(OutFD,") - "),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensR),
+	print(OutFD,"),\n").
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','decrease','(',FcName|Tokens], TokensR) , upper(FcName,UName) =>
+	printf(OutFD,"put(%w0,(",UName),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensAway),
+	printf(OutFD,"),get(%w0,(",UName),
+	parse_first_argument(OutFD,Nchanged,Tokens,Tokens1),
+	print(OutFD,")) - "),
+	parse_first_argument(OutFD,Nchanged,Tokens1,TokensR),
+	print(OutFD,"),\n").
+
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','=','(',FcName,')'|Tokens], TokensR) , upper(FcName,UName) =>
+	printf(OutFD,"put(%w0,res,",UName),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensR),
+	print(OutFD,"),\n").
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(','=','(',FcName|Tokens], TokensR) , upper(FcName,UName) =>
+	printf(OutFD,"put(%w0,(",UName),
+	parse_first_argument(OutFD,Nchanged,Tokens,Tokens1),
+	print(OutFD,"),"),
+	parse_first_argument(OutFD,Nchanged,Tokens1,TokensR),
+	print(OutFD,"),\n").
+	
+
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(',Predicate,')'|Tokens],TokensR) =>
+	upper(Predicate,UPredicate),
+	Pd = get(Nchanged,UPredicate),
+	NewPd = Pd + 1,
+	put(Nchanged,UPredicate,NewPd),
+	printf(OutFD,"%w%d = insert_ordered_wod(%w%d,true),\n",UPredicate,NewPd,UPredicate,Pd),
+	TokensR = Tokens.
+	
+parse_effects(OutFD,Nchanged,Selected,Cost,['(',Predicate|Tokens],TokensR) =>
+	upper(Predicate,UPredicate),
+	Pd = get(Nchanged,UPredicate),
+	NewPd = Pd + 1,
+	put(Nchanged,UPredicate,NewPd),
+	printf(OutFD,"%w%d = insert_ordered_wod(%w%d,(",UPredicate,NewPd,UPredicate,Pd),
+	parse_first_argument(OutFD,Nchanged,Tokens,TokensR),
+	print(OutFD,")),\n").
+	
+parse_first_effects_and(OutFD,Nchanged,Selected,Cost,Tokens,TokensR) =>
+	parse_effects(OutFD,Nchanged,Selected,Cost,Tokens,Tokens1),
+	parse_effects_and(OutFD,Nchanged,Selected,Cost,Tokens1,TokensR).
+
+	
+parse_effects_and(OutFD,Nchanged,Selected,Cost,[')'|Tokens],TokensR) => TokensR=Tokens.
+parse_effects_and(OutFD,Nchanged,Selected,Cost,Tokens,TokensR) =>
+	parse_effects(OutFD,Nchanged,Selected,Cost,Tokens,Tokens1),
+	parse_effects_and(OutFD,Nchanged,Selected,Cost,Tokens1,TokensR).
+	
+	
+parse_forall_effects(OutFD,Nchanged,Type,Var,[')'|Tokens],TokensR) => TokensR = Tokens.
+parse_forall_effects(OutFD,Nchanged,Type,Var,['(','and'|Tokens],TokensR)=>
+	parse_forall_effects_and(OutFD,Nchanged,Type,Var,Tokens,TokensR).
+	
+parse_forall_effects(OutFD,Nchanged,Type,Var,['(','not','(',Predicate|Tokens],TokensR) , upper(Predicate,UPredicate) =>
+	Pd = get(Nchanged,UPredicate),
+	NewPd = Pd + 1,
+	put(Nchanged,UPredicate,NewPd),
+	printf(OutFD,"%w%w = [ (",UPredicate,NewPd),
+	parse_first_argument(OutFD,Nchanged,Tokens,Tokens1),
+	printf(OutFD,") : %w",to_uppercase(atom_chars(Var)),),
+	printf(OutFD," in %w_list, member((",to_uppercase(atom_chars(Type))),
+	parse_first_argument(OutFD,Nchanged,Tokens,Tokens2),
+	printf(OutFD,"),%w%w), not(member(%w",UPredicate,Pd,to_uppercase(atom_chars(Var)),),
+	%parse_first_argument(OutFD,Nchanged,Tokens,Tokens4),
+	TokensR = tail(Tokens2),
+	printf(OutFD,",%w_l)) ],\n",to_uppercase(atom_chars(Type))).
+
+parse_forall_effects(OutFD,Nchanged,Type,Var,['(','='|Tokens],TokensR)  =>
+	printf(OutFD,"foreach (%w in %w_l)\n",to_uppercase(atom_chars(Var)),to_uppercase(atom_chars(Type))),
+	parse_effects(OutFD,Nchanged,Selected,Cost,['(','='|Tokens],TokensR),
+	printf(OutFD,"end,\n").
+	
+parse_forall_effects(OutFD,Nchanged,Type,Var,['(','decrease'|Tokens],TokensR)  =>
+	printf(OutFD,"foreach (%w in %w_l)\n",to_uppercase(atom_chars(Var)),to_uppercase(atom_chars(Type))),
+	parse_effects(OutFD,Nchanged,Selected,Cost,['(','decrease'|Tokens],TokensR),
+	printf(OutFD,"end,\n").
+	
+parse_forall_effects(OutFD,Nchanged,Type,Var,['(','increase'|Tokens],TokensR) =>
+	printf(OutFD,"foreach (%w in %w_l)\n",to_uppercase(atom_chars(Var)),to_uppercase(atom_chars(Type))),
+	parse_effects(OutFD,Nchanged,Selected,Cost,['(','increase'|Tokens],TokensR),
+	printf(OutFD,"end,\n").
+	
+parse_forall_effects(OutFD,Nchanged,Type,Var,['(',Predicate|Tokens],TokensR),
+	upper(Predicate,UPredicate) 
+	=>
+	Pd = get(Nchanged,UPredicate),
+	NewPd = Pd + 1,
+	put(Nchanged,UPredicate,NewPd),
+	printf(OutFD,"%w%w = sort (%w%w ++ %w_l),\n",UPredicate,NewPd,UPredicate,Pd,to_uppercase(atom_chars(Type))),
+	skip_not(0,Tokens,TokensR).
+	
+
+
+parse_forall_effects_and(OutFD,Nchanged,Type,Var,[')'|Tokens],TokensR) => TokensR = Tokens.
+parse_forall_effects_and(OutFD,Nchanged,Type,Var,Tokens,TokensR) =>
+	parse_forall_effects(OutFD,Nchanged,Type,Var,Tokens,Tokens1),
+	parse_forall_effects_and(OutFD,Nchanged,Type,Var,Tokens1,TokensR).
+
+	
+skip_not([')'|Tokens],TokensR) => TokensR = Tokens.
+skip_not([_|Tokens],TokensR) => skip_not(Tokens,TokensR).
+skip_not(0,[')'|Tokens],TokensR) => TokensR = Tokens.
+skip_not(Round,[')'|Tokens],TokensR) => skip_not(Round-1,Tokens,TokensR).
+skip_not(Round,['('|Tokens],TokensR) => skip_not(Round+1,Tokens,TokensR).
+skip_not(Round,[_|Tokens],TokensR) => skip_not(Tokens,TokensR).
+skip_not(0,[')'|Tokens],TokensR,TokensbNot,TokensbNotR) => TokensR = Tokens, TokensbNotR = TokensbNot ++ [')'].
+skip_not(Round,[')'|Tokens],TokensR,TokensbNot,TokensbNotR) => skip_not(Round-1,Tokens,TokensR,TokensbNot++[')'],TokensbNotR).
+skip_not(Round,['('|Tokens],TokensR,TokensbNot,TokensbNotR) => skip_not(Round+1,Tokens,TokensR,TokensbNot++['('],TokensbNotR).
+skip_not(Round,[Token|Tokens],TokensR,TokensbNot,TokensbNotR) => skip_not(Round,Tokens,TokensR,TokensbNot++[Token],TokensbNotR).
+	
+										%--------------ARGUMENTS PARSING-----------------
+parse_first_argument(OutFD,Nchanged,['?',Arg|Tokens],TokensR) => 
+	write_argument(OutFD,Arg),
+	parse_arguments(OutFD,Nchanged,Tokens,TokensR).
+	
+%function
+parse_first_argument(OutFD,Nchanged,['(',Name,')'|Tokens],TokensR), upper(Name,UName) =>
+	printf(OutFD,"get(%w%w,res,null)",UName,get(Nchanged,UName)),
+	parse_arguments(OutFD,Nchanged,Tokens,TokensR).
+
+parse_first_argument(OutFD,Nchanged,['(',Name|Tokens],TokensR), upper(Name,UName) =>
+	printf(OutFD,"get(%w%w,(",UName,get(Nchanged,UName)),
+	parse_first_argument(OutFD,Nchanged,Tokens,Tokens1),
+	printf(OutFD,"),null)"),
+	parse_arguments(OutFD,Nchanged,Tokens1,TokensR).
+	
+	
+%constant
+parse_first_argument(OutFD,Nchanged,[Arg|Tokens],TokensR) => 
+	printf(OutFD,"%w",Arg),
+	parse_arguments(OutFD,Nchanged,Tokens,TokensR).
+
+parse_arguments(OutFD,Nchanged,[')'|Tokens],TokensR) => 	
+	TokensR=Tokens.
+parse_arguments(OutFD,Nchanged,['?',Arg|Tokens],TokensR) => 
+	print(OutFD,","),
+	write_argument(OutFD,Arg),
+	parse_arguments(OutFD,Nchanged,Tokens,TokensR).
+	
+%function
+parse_arguments(OutFD,Nchanged,['(',Name,')'|Tokens],TokensR), upper(Name,UName) =>
+	printf(OutFD,",get(%w%w,res,null)",UName,get(Nchanged,UName)),
+	parse_arguments(OutFD,Nchanged,Tokens,TokensR).
+
+parse_arguments(OutFD,Nchanged,['(',Name|Tokens],TokensR), upper(Name,UName) =>
+	printf(OutFD,",get(%w%w,(",UName,get(Nchanged,UName)),
+	parse_first_argument(OutFD,Nchanged,Tokens,Tokens1),
+	printf(OutFD,"),null)"),
+	parse_arguments(OutFD,Nchanged,Tokens1,TokensR).
+	
+
+%constant
+parse_arguments(OutFD,Nchanged,[Arg|Tokens],TokensR) => 
+	printf(OutFD,",%w",Arg),
+	parse_arguments(OutFD,Nchanged,Tokens,TokensR).
+	
+%------------------------------------------------ARGUMENT STRING PARSING-----------------
+
+parse_first_argument(String,StringR,Nchanged,['?',Arg|Tokens],TokensR) => 
+	NewString = String ++ to_uppercase(atom_chars(Arg)),
+	parse_arguments(NewString,StringR,Nchanged,Tokens,TokensR).
+	
+%function
+parse_first_argument(String,StringR1,Nchanged,['(',Name,')'|Tokens],TokensR), upper(Name,UName) =>
+	NewString = String ++ "get("  ++ UName ++ number_chars(get(Nchanged,UName)) ++ ",res,null)",
+	parse_arguments(NewString,StringR1,Nchanged,Tokens,TokensR).
+
+parse_first_argument(String,StringR1,Nchanged,['(',Name|Tokens],TokensR), upper(Name,UName) =>
+	NewString = String ++ "get(" ++ UName ++ number_chars(get(Nchanged,UName)) ++ ",(",
+	parse_first_argument(NewString,StringR,Nchanged,Tokens,Tokens1),
+	NewString1 = StringR ++ "),null)",
+	parse_arguments(NewString1,StringR1,Nchanged,Tokens1,TokensR).
+	
+%constant
+parse_first_argument(String,StringR,Nchanged,[Arg|Tokens],TokensR) => 
+	NewString = String ++ to_uppercase(atom_chars(Arg)),	
+	parse_arguments(NewString,StringR,Nchanged,Tokens,TokensR).
+
+parse_arguments(String,StringR,Nchanged,[')'|Tokens],TokensR) => 
+	TokensR=Tokens, StringR = String .
+	
+parse_arguments(String,StringR,Nchanged,['?',Arg|Tokens],TokensR) => 
+	NewString = String ++ "," ++ to_uppercase(atom_chars(Arg)),
+	parse_arguments(NewString,StringR,Nchanged,Tokens,TokensR).
+	
+%function
+parse_arguments(String,StringR1,Nchanged,['(',Name,')'|Tokens],TokensR), upper(Name,UName) =>
+	NewString = String ++ ",get("  ++ UName ++ number_chars(get(Nchanged,UName)) ++ ",res,null)",
+	parse_arguments(NewString,StringR1,Nchanged,Tokens,TokensR).
+
+parse_arguments(String,StringR,Nchanged,['(',Name|Tokens],TokensR), upper(Name,UName) =>
+	NewString = String ++ ",get(" ++ UName ++ number_chars(get(Nchanged,UName)) ++ ",(",
+	parse_first_argument(NewString,StringR,Nchanged,Tokens,Tokens1),
+	NewString1 = StringR ++ "),null)",
+	parse_arguments(NewString1,StringR,Nchanged,Tokens1,TokensR).
+	
+%constant
+parse_arguments(String,StringR,Nchanged,[Arg|Tokens],TokensR) => 
+	NewString = String ++ to_uppercase(atom_chars(Arg)),
+	parse_arguments(NewString,StringR,Nchanged,Tokens,TokensR).
+
+
+
+write_name(OutFD,Name),atom(Name) =>
+    atom_chars(Name) = Chars,
+    printf(OutFD,"%s",Chars.to_lowercase()).
+write_name(OutFD,Name) =>
+    print(OutFD,Name).
+	
+write_argument(OutFD,Name),atom(Name) =>
+    atom_chars(Name) = Chars,
+    printf(OutFD,"%s",Chars.to_uppercase()).
+write_argument(OutFD,Name) =>
+    print(OutFD,Name).
+	
+	
+upper(Predicate,Ris) =>
+	SPredicate = atom_chars(Predicate),
+	Ris = to_uppercase(SPredicate).
+	
+													%----------INSTANCE PARSER 
+													
+parse_object(Objs,ObjsR,[')'|Tokens],TokensR) => ObjsR = Objs, TokensR = Tokens.
+parse_object(Objs,ObjsR,['-',Type|Tokens],TokensR) =>
+	parse_object(Objs,ObjsR,Tokens,TokensR).
+parse_object(Objs,ObjsR,[Name|Tokens],TokensR) =>
+	R = find_type_ip(Tokens),
+	if (R != false) then
+		Objs1 = insert_ordered(Objs,(Name,R)),
+		parse_object(Objs1,ObjsR,Tokens,TokensR)
+	end.
+	
+parse_return(OutFD,[Value|Tokens1],TokensR) =>
+	printf(OutFD,",%w)",Value),
+	TokensR = tail(Tokens1).
+
+parse_init(OutFD,['(','=','(',Name|Tokens],TokensR) =>
+	print(OutFD,"        =("),write_name(OutFD,Name),
+    parse_fact_first_arg(OutFD,Tokens,Tokens1),
+	Tokens2 = Tokens1,
+	parse_return(OutFD,Tokens2,Tokens3),
+	parse_init_rest(OutFD,Tokens3,TokensR).
+	
+parse_init(OutFD,['(',Name|Tokens],TokensR) =>
+    print(OutFD,"        "),write_name(OutFD,Name),
+    parse_fact_first_arg(OutFD,Tokens,Tokens1),
+    parse_init_rest(OutFD,Tokens1,TokensR).
+parse_init(_OutFD,Tokens,_TokensR) =>
+    throw($token_expected('(',Tokens)).
+
+parse_init_rest(_OutFD,[')'|Tokens],TokensR) => TokensR=Tokens.
+
+parse_init_rest(OutFD,['(','=','(',Name|Tokens],TokensR) =>
+	print(OutFD,",\n        =("),write_name(OutFD,Name),
+    parse_fact_first_arg(OutFD,Tokens,Tokens1),
+	Tokens2 = Tokens1,
+	parse_return(OutFD,Tokens2,Tokens3),
+	parse_init_rest(OutFD,Tokens3,TokensR).
+
+parse_init_rest(OutFD,['(',Name|Tokens],TokensR) =>
+    print(OutFD,','),nl(OutFD),
+    print(OutFD,"        "),write_name(OutFD,Name),
+    parse_fact_first_arg(OutFD,Tokens,Tokens1),
+    parse_init_rest(OutFD,Tokens1,TokensR).
+
+parse_goal(OutFD,['(',and|Tokens],TokensR) =>
+    parse_goal(OutFD,Tokens,TokensR).
+parse_goal(OutFD,['(','AND'|Tokens],TokensR) =>
+    parse_goal(OutFD,Tokens,TokensR).
+parse_goal(OutFD,['(',Name|Tokens],TokensR) =>
+    print(OutFD,"        "),write_name(OutFD,Name),
+    parse_fact_first_arg(OutFD,Tokens,Tokens1),
+    parse_goal_rest(OutFD,Tokens1,TokensR).
+
+parse_goal_rest(_OutFD,[')'|Tokens],TokensR) => TokensR=Tokens.
+parse_goal_rest(OutFD,['(',and|Tokens],TokensR) =>
+    parse_goal_rest(OutFD,Tokens,TokensR).
+parse_goal_rest(OutFD,['(','AND'|Tokens],TokensR) =>
+    parse_goal_rest(OutFD,Tokens,TokensR).
+parse_goal_rest(OutFD,['(',Name|Tokens],TokensR) =>
+    print(OutFD,','),nl(OutFD),
+    print(OutFD,"        "),write_name(OutFD,Name),
+    parse_fact_first_arg(OutFD,Tokens,Tokens1),
+    parse_goal_rest(OutFD,Tokens1,TokensR).
+
+parse_fact_first_arg(_OutFD,[')'|Tokens],TokensR) =>
+    TokensR = Tokens.
+parse_fact_first_arg(OutFD,['(',Arg,')'|Tokens],TokensR) =>
+    print(OutFD,'('),
+    write_name(OutFD,Arg),
+    parse_fact_args(OutFD,Tokens,TokensR).
+parse_fact_first_arg(OutFD,['(',Arg|Tokens],TokensR) =>
+    print(OutFD,'('),
+    write_name(OutFD,Arg),print(OutFD,'('),
+    parse_fact_first_arg(OutFD,Tokens,Tokens1),
+    parse_fact_args(OutFD,Tokens1,TokensR).
+parse_fact_first_arg(OutFD,[Arg|Tokens],TokensR) =>
+    print(OutFD,'('),
+    write_name(OutFD,Arg),
+    parse_fact_args(OutFD,Tokens,TokensR).
+
+parse_fact_args(OutFD,[')'|Tokens],TokensR) =>
+    print(OutFD,")"),
+    TokensR = Tokens.
+parse_fact_args(OutFD,[Arg|Tokens],TokensR) =>
+    print(OutFD,','),
+    write_name(OutFD,Arg),
+    parse_fact_args(OutFD,Tokens,TokensR).
+
+
+	
+find_type_ip([')'|Tokens]) = R => R = false.
+find_type_ip(['-',Type|Tokens]) = R => R = Type.
+find_type_ip([_|Tokens]) = R => R = find_type_ip(Tokens).											
+						
+	
+
+
+
+
+
+
+    

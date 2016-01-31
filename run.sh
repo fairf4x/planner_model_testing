@@ -60,7 +60,7 @@ if [ $# -gt 0 ]; then
   done
 else
   echo "No parameter specified - processing all domains."
-  for D in `ls $DOMAIN_DIR`;
+  for D in `ls $DOMAIN_DIR | grep -v README.md`;
   do
     echo "==== Processing $D ====";
     process_domain $D
