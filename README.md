@@ -3,6 +3,7 @@ This repository contains a bunch of scripts for running experiments with plannin
 
 ## Prerequisities
 Scripts described below has some dependencies:
+
 1. working **picat** instalation. It is recommended to download latest version [here](http://picat-lang.org/download.html). Executable **picat** should be available on `PATH`.
 2. working **perl** instalation. Perl is required only to run the script **constrain** which is used to enforce time and memory limits while running experiments. The script itself should be available on `PATH`.
 3. working GNU [**parallel**](http://www.gnu.org/software/parallel/) utility. The utility is used to run experiments in parallel - the number of threads depends on the content of `CPU_CNT` variable in the script `run.sh`.
