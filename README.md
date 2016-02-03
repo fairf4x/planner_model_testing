@@ -1,7 +1,14 @@
 # Picat model testing
 This repository contains a bunch of scripts for running experiments with planning domain models in [Picat](http://www.picat-lang.org/).
 
-## Workflow:
+## Prerequisities
+Scripts described below has some dependencies:
+1. working **picat** instalation. It is recommended to download latest version [here](http://picat-lang.org/download.html). Executable **picat** should be available on `PATH`.
+2. working **perl** instalation. Perl is required only to run the script **constrain** which is used to enforce time and memory limits while running experiments. The script itself should be available on `PATH`.
+3. working GNU [**parallel**](http://www.gnu.org/software/parallel/) utility. The utility is used to run experiments in parallel - the number of threads depends on the content of `CPU_CNT` variable in the script `run.sh`.
+
+## Workflow
+Following steps should provide enough guidance to run your own set of experiments.
 
 1. Get picat models from PDDL domain and problem descriptions:
   1. Prepare all your PDDL files in a directory (refered as `pddl_dir`). Domain file has to be named `domain.pddl` to be recognized by scripts.
@@ -13,7 +20,7 @@ This repository contains a bunch of scripts for running experiments with plannin
   + `prob_list` - list of problems from `problems` directory to use in the experiment.
 3. Call `./run.sh domainName` to run the experiment. Results of the experiment will be stored in `results/domainName`
 
-## Scripts:
+## Scripts
 
 1. `run.sh` - this script automatically runs all the experiments. If provided with list of parameters it runs experiments only for selected domains.
   e.g.:
