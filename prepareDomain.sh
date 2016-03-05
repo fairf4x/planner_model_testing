@@ -26,5 +26,9 @@ touch ${DOMAIN_DIR}/${DOMAIN_NAME}/pla_list
 echo "${DOMAIN_DIR}/${DOMAIN_NAME}/prob_list"
 touch ${DOMAIN_DIR}/${DOMAIN_NAME}/prob_list
 
-echo "Copying pddl files:"
-cp ${PDDL_DIR}/* ${DOMAIN_DIR}/${DOMAIN_NAME}/pddl
+if [ -z "${PDDL_DIR}" ]; then
+  echo "No pddl directory specified - leaving empty.";
+else
+  echo "Copying pddl files:"
+  cp ${PDDL_DIR}/* ${DOMAIN_DIR}/${DOMAIN_NAME}/pddl
+fi
