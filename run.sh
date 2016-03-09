@@ -31,6 +31,7 @@ cd $DOMAIN_PATH
 echo "cleaning previous experiments: "
 [[ -f "experiments" ]] && rm -f "experiments"
 [[ -d "execution" ]] && rm -rf "execution"
+[[ -d "$RESULT_PATH" ]] && rm -rf "$RESULT_PATH"
 
 echo "generating list of experiments:"
 [[ -f "pla_list" ]] || { echo "ERROR: missing pla_list file"; exit; }
