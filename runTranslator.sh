@@ -12,8 +12,9 @@ function translate_domain () {
   INPUT="${DOMAIN_DIR}/${DOMAIN}/pddl/domain.pddl"
 
   if [ ! -f ${INPUT} ]; then
-      echo "File ${INPUT} not found!"
-      exit
+      echo "warning: File ${INPUT} not found!"
+      echo "Domain file not specified."
+      return
   fi
 
 
