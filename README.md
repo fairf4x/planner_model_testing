@@ -15,23 +15,23 @@ Following steps should provide enough guidance to run your own set of experiment
   1. Prepare all your PDDL files in a directory (refered as `pddl_dir`). Domain file has to be named `domain.pddl` to be recognized by scripts.
   2. Call `./prepareDomain.sh domainName pddl_dir` to prepare directory structure
   3. Call `./runTranslator.sh domainName` to translate PDDL files to Picat
-2. Edit files `mod_list`, `pla_list` and `prob_list` to configure your experiment. These files has to be simple lists - one record on one line.
+2. Edit files `mod_list`, `pla_list` and `prob_list` to configure your experiment. These files has to be simple lists - one record on one line. Number of experiments run will be `#models X #planners X #problems`.
   + `mod_list` - names of picat domain model to use (those are stored in `models` directory for each domain). Models are listed without `.pi` extension.
-  + `pla_list` - names of picat planners to use. One planner on the line (e.g.: `best_plan`). Planners listed here will be used to replace `###PLANNER###` string in model code.
+  + `pla_list` - names of picat planners to use. One planner on the line (e.g.: `best_plan`). Planners listed here will be used for planning. 
   + `prob_list` - list of problems from `problems` directory to use in the experiment.
-3. Call `./run.sh domainName` to run the experiment. Results of the experiment will be stored in `results/domainName`
+3. Call `./plan_all.sh domainName` to run the experiment. Results of the experiment will be stored in `results/domainName`
 
 ## Scripts
 
-1. `run.sh` - this script automatically runs all the experiments. If provided with list of parameters it runs experiments only for selected domains.
+1. `plan_all.sh` - this script automatically runs all the experiments. If provided with list of parameters it runs experiments only for selected domains.
   e.g.:
   ```
-  ./run.sh depots nomystery
+  ./plan_all.sh depots nomystery
   ``` 
   runs experiments only with *depots* and *nomystery* domains 
   *Parameters:*  
   + `CPU_CNT` .. number of parallel threads to launch
-2. `run_one.sh` - this scipt is called by the **run.sh** script for each domain that is to be processed
+2. `plan_one.sh` - this scipt is called by the **run.sh** script for each domain that is to be processed
   *Parameters:*  
   + `TIME_LIMIT` .. time limit for execution of one problem instance  
   + `MEM_LIMIT` .. memory limit for execution of one problem instance
@@ -43,8 +43,8 @@ Following steps should provide enough guidance to run your own set of experiment
 ## Experimental
 There are two scripts which can be used to run experiment on SGE cluster.
 
-1. `crun.sh` - modified `run.sh` for use with SGE. Usage is identical.
-2. `crun_one.sh` - modified `run_one.sh`. There are some cluster specific parameters set in header of the script:
+1. `cplan_all.sh` - modified `plan_all.sh` for use with SGE. Usage is identical.
+2. `cplan_one.sh` - modified `plan_one.sh`. There are some cluster specific parameters set in header of the script:
    ```
    #$ -wd <path to the working directory>
    #$ -N <job name>
@@ -52,4 +52,3 @@ There are two scripts which can be used to run experiment on SGE cluster.
    #$ -o <output log directory>
    #$ -e <error log directory>
    ```
-
