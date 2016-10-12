@@ -21,17 +21,23 @@ do
 done < pla_list
 }
 
+function clean () {
+RESULT_PATH=${BASE_DIR}/${RESULT_DIR}/$1
+DOMAIN_PATH=${BASE_DIR}/${DOMAIN_DIR}/$1
+echo -n "cleaning files from previous experiments .."
+[[ -f "${DOMAIN_PATH}/experiments" ]] && rm -f "${DOMAIN_PATH}/experiments"
+[[ -d "$RESULT_PATH" ]] && rm -rf "$RESULT_PATH"
+echo "OK"
+}
+
 function process_domain () {
 DOMAIN_PATH=${BASE_DIR}/${DOMAIN_DIR}/$1
 RESULT_PATH=${BASE_DIR}/${RESULT_DIR}/$1
 
+clean $1
+
 echo $DOMAIN_PATH
 cd $DOMAIN_PATH
-
-echo "cleaning previous experiments: "
-[[ -f "experiments" ]] && rm -f "experiments"
-[[ -d "execution" ]] && rm -rf "execution"
-[[ -d "$RESULT_PATH" ]] && rm -rf "$RESULT_PATH"
 
 echo "generating list of experiments:"
 [[ -f "pla_list" ]] || { echo "ERROR: missing pla_list file"; exit; }
@@ -39,7 +45,7 @@ echo "generating list of experiments:"
 [[ -f "prob_list" ]] || { echo "ERROR: missing prob_list file"; exit; }
 genexp > experiments
 
-echo "creating result directory:"
+echo "creating result directory: $RESULT_PATH"
 [[ -d "$RESULT_PATH" ]] || mkdir -p $RESULT_PATH
 
 echo "executing experiments in parallel:"

@@ -30,9 +30,9 @@ MEM_LIMIT=1000000
 
 mkdir -p $RESULT_DIR
 
-echo "plan_one.sh:"
-echo "WORKDIR=$WORKDIR"
-echo "RESULT_DIR=$RESULT_DIR"
+echo "cplan_one.sh:"
+echo "DOMAIN_DIR=${DOMAIN_DIR}"
+echo "RESULT_DIR=${RESULT_DIR}"
 echo "PICAT=$PICAT"
 echo "TIMEOUT=$TIMEOUT"
 
@@ -44,12 +44,13 @@ MODEL_DIR="models"
 # directory with problem instances
 TASK_DIR="problems"
 
-echo  "planning: ${FILE} ${TASK} ${PLANNER}"
+echo  "planning: ${MODEL} ${TASK} ${PLANNER}"
 
-LOGFILE="${FILE}-${TASK}-${PLANNER}_log"
+LOGFILE="${MODEL}-${TASK}-${PLANNER}_log"
 
 # execute program
 COMMAND="$PICAT ${MODEL_DIR}/${MODEL}.pi ${TASK_DIR}/${TASK} ${PLANNER}"
 RESULT="${RESULT_DIR}/${MODEL}-${TASK}-${PLANNER}"
 echo ${COMMAND}
+cd ${DOMAIN_DIR}
 $TIMEOUT -t $TIME_LIMIT -m $MEM_LIMIT "${COMMAND} >> ${RESULT} 2>&1" 2> ${RESULT_DIR}/${LOGFILE}
