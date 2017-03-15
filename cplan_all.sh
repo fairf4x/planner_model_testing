@@ -4,6 +4,7 @@
 
 DOMAIN_DIR='domains'
 RESULT_DIR='results'
+LOG_DIR='logs'
 BASE_DIR=`pwd`
 
 # arg1 - domain
@@ -11,20 +12,25 @@ BASE_DIR=`pwd`
 function clean () {
 RESULT_PATH=${BASE_DIR}/${RESULT_DIR}/$1
 DOMAIN_PATH=${BASE_DIR}/${DOMAIN_DIR}/$1
+LOG_PATH=${BASE_DIR}/${LOG_DIR}/$1
 echo -n "cleaning files from previous experiments .."
-[[ -f "${DOMAIN_PATH}/experiments" ]] && rm -f "${DOMAIN_PATH}/experiments"
 [[ -d "$RESULT_PATH" ]] && rm -rf "$RESULT_PATH"
+[[ -d "$LOG_PATH" ]] && rm -rf "$LOG_PATH"
 echo "OK"
 }
 
 function process_domain () {
 DOMAIN_PATH=${BASE_DIR}/${DOMAIN_DIR}/$1
 RESULT_PATH=${BASE_DIR}/${RESULT_DIR}/$1
+LOG_PATH=${BASE_DIR}/${LOG_DIR}/$1
 
 clean $1
 
 echo "creating result directory: $RESULT_PATH"
 [[ -d "$RESULT_PATH" ]] || mkdir -p $RESULT_PATH
+
+echo "creating log directory: $LOG_PATH"
+[[ -d "$LOG_PATH" ]] || mkdir -p $LOG_PATH
 
 cd ${DOMAIN_PATH}
 
@@ -35,7 +41,8 @@ do
 	do
                 while read task;
                 do
-                        qsub -v planner="${planner}",model="${model}",task="${task}",domain="$1" $BASE_DIR/cplan_one.sh
+			JOB_NAME="${model}-${planner}-${task}"
+                        qsub -v planner="${planner}",model="${model}",task="${task}",domain="$1" -o $LOG_PATH/${JOB_NAME}_o.log -e $LOG_PATH/${JOB_NAME}_e.log -N $JOB_NAME $BASE_DIR/cplan_one.sh
                 done < prob_list
 	done < mod_list
 done < pla_list

@@ -47,8 +47,8 @@ There are two scripts which can be used to run experiment on SGE cluster.
 2. `cplan_one.sh` - modified `plan_one.sh`. There are some cluster specific parameters set in header of the script:
    ```
    #$ -wd <path to the working directory>
-   #$ -N <job name>
    #$ -q <queue name>
-   #$ -o <output log directory>
-   #$ -e <error log directory>
+   #$ -l mem_free=<required mem available to run job>
+   #$ -l h_vmem=<hard memory limit>
+   #$ -l h_rt=<hard runtime limit format: hh:mm:ss>
    ```
