@@ -6,7 +6,9 @@ DOMAIN_DIR='domains'
 RESULT_DIR='results'
 CPU_CNT=3
 
-BASE_DIR=`pwd`
+# get full path to script location directory
+# regardless of where the script was called
+BASE_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 function genexp () {
 while read planner;
