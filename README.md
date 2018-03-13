@@ -39,16 +39,3 @@ Following steps should provide enough guidance to run your own set of experiment
   + `<domain>.pi` file in the `models` directory
   + problem files in `problems` directory
 4. `prepareDomain.sh` - script to load pddl domain and problems from iven directory and prepare them for further processing
-
-## Experimental
-There are two scripts which can be used to run experiment on SGE cluster.
-
-1. `cplan_all.sh` - modified `plan_all.sh` for use with SGE. Usage is identical.
-2. `cplan_one.sh` - modified `plan_one.sh`. There are some cluster specific parameters set in header of the script:
-   ```
-   #$ -wd <path to the working directory>
-   #$ -q <queue name>
-   #$ -l mem_free=<required mem available to run job>
-   #$ -l h_vmem=<hard memory limit>
-   #$ -l h_rt=<hard runtime limit format: hh:mm:ss>
-   ```
