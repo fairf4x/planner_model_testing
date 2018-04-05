@@ -3,6 +3,7 @@
 # walk through all domain directories in DOMAIN_DIR
 
 DOMAIN_DIR='domains'
+PLANNER_DIR='planners'
 RESULT_DIR='results'
 LOG_DIR='logs'
 # get full path to script location directory
@@ -24,6 +25,7 @@ echo "OK"
 function process_domain () {
 DOMAIN_PATH=${BASE_DIR}/${DOMAIN_DIR}/$1
 RESULT_PATH=${BASE_DIR}/${RESULT_DIR}/$1
+PLANNER_PATH=${BASE_DIR}/${PLANNER_DIR}
 LOG_PATH=${BASE_DIR}/${LOG_DIR}/$1
 
 clean $1
@@ -41,11 +43,16 @@ while read planner;
 do
 	while read model;
 	do
-                while read task;
-                do
-			JOB_NAME="${model}-${planner}-${task}"
-                        qsub -v planner="${planner}",model="${model}",task="${task}",domain="$1" -o $LOG_PATH/${JOB_NAME}_o.log -e $LOG_PATH/${JOB_NAME}_e.log -N $JOB_NAME $BASE_DIR/cplan_one.sh
-                done < prob_list
+               	while read task;
+               	do
+			# get configuration list from planner directory
+			for config in `ls ${PLANNER_DIR}/${planner} | grep "\.conf$"`;
+			do
+
+				JOB_NAME="${planner}-${model}-${task}-${config%.*}"
+                       		qsub -v planner="${planner}",model="${model}",task="${task}",domain="$1",config="${config}" -o $LOG_PATH/${JOB_NAME}_o.log -e $LOG_PATH/${JOB_NAME}_e.log -N $JOB_NAME $BASE_DIR/cplan_one.sh
+			done
+               	done < prob_list
 	done < mod_list
 done < pla_list
 
