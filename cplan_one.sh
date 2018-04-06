@@ -1,6 +1,6 @@
 #!/bin/bash
 #$ -wd /lnet/spec/work/people/vodrazka/picat_model_testing
-#$ -q ms-all.q@*
+#$ -q troja-all.q@*
 #$ -l mem_free=1G
 #$ -l h_vmem=1G
 #$ -l h_rt=0:30:00
@@ -41,7 +41,7 @@ echo "CONFIG=${CONFIG}"
 MODEL_DIR="${DOMAIN_DIR}/models"
 
 # directory with problem instances
-TASK_DIR="${DOMAIN_DIR}/problems/${MODEL%.*}"
+TASK_DIR="${DOMAIN_DIR}/problems/${MODEL}"
 
 LOGFILE="${PLANNER}-${MODEL}-${TASK}-${CONF_ID}_log"
 
