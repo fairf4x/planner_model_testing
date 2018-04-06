@@ -37,9 +37,8 @@ echo "creating log directory: $LOG_PATH"
 [[ -d "$LOG_PATH" ]] || mkdir -p $LOG_PATH
 
 cd ${DOMAIN_PATH}
-ls
-echo "DEBUG: DOMAIN_PATH: $DOMAIN_PATH"
 echo "Submiting jobs to cluster:"
+
 while read planner;
 do
 	while read model;
@@ -47,12 +46,12 @@ do
                	while read task;
                	do
 			# get configuration list from planner directory
-			for config in `ls ${PLANNER_DIR}/${planner} | grep "\.conf$"`;
+			for config in `ls ${PLANNER_PATH}/${planner} | grep "\.conf$"`;
 			do
 
-				JOB_NAME="${planner}-${model}-${task}-${config%.*}"
-				echo "DEBUG:JOB_NAME = $JOB_NAME"
-                       		#qsub -v planner="${planner}",model="${model}",task="${task}",domain="$1",config="${config}" -o $LOG_PATH/${JOB_NAME}_o.log -e $LOG_PATH/${JOB_NAME}_e.log -N $JOB_NAME $BASE_DIR/cplan_one.sh
+				JOB_NAME="${planner}-${model%.*}-${task}-${config%.*}"
+				#echo "DEBUG:JOB_NAME = $JOB_NAME"
+                      		echo "qsub -v planner="${planner}",model="${model}",task="${task}",domain="$1",config="${config}" -o $LOG_PATH/${JOB_NAME}_o.log -e $LOG_PATH/${JOB_NAME}_e.log -N $JOB_NAME $BASE_DIR/cplan_one.sh"
 			done
                	done < prob_list
 	done < mod_list

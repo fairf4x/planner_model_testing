@@ -1,6 +1,6 @@
 #!/bin/bash
 #$ -wd /lnet/troja/work/people/vodrazka/picat_model_testing
-#$ -q ms-all.q@tauri*
+#$ -q ms-all.q@*
 #$ -l mem_free=1G
 #$ -l h_vmem=1G
 #$ -l h_rt=0:30:00
