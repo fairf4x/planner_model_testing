@@ -1,5 +1,5 @@
 #!/bin/bash
-#$ -wd /lnet/troja/work/people/vodrazka/picat_model_testing
+#$ -wd /lnet/spec/work/people/vodrazka/picat_model_testing
 #$ -q ms-all.q@*
 #$ -l mem_free=1G
 #$ -l h_vmem=1G
@@ -8,30 +8,18 @@
 # variables provided through qsub's -v option:
 
 # planner
-#PLANNER=${planner}
+PLANNER=${planner}
 # planner specific configuration file
-#CONFIG=${config}
+CONFIG=${config}
 # domain model used
-#MODEL=${model}
+MODEL=${model}
 # problem instance
-#TASK=${task}
+TASK=${task}
 # domain
-#DOMAIN=${domain}
-
-# planner
-PLANNER=$1
-# planner specific configuration file
-CONFIG=$2
-# domain model used
-MODEL=$3
-# problem instance
-TASK=$4
-# domain
-DOMAIN=$5
-
+DOMAIN=${domain}
 
 # set up directories
-WORKDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+WORKDIR=`pwd`
 DOMAIN_DIR="$WORKDIR/domains/$DOMAIN"
 PLANNER_DIR="$WORKDIR/planners"
 RESULT_DIR="$WORKDIR/results/$DOMAIN"
@@ -54,9 +42,6 @@ MODEL_DIR="${DOMAIN_DIR}/models"
 
 # directory with problem instances
 TASK_DIR="${DOMAIN_DIR}/problems/${MODEL%.*}"
-
-echo  "planning: ${PLANNER} ${MODEL} ${TASK}"
-echo  "configuration: ${CONF_ID}"
 
 LOGFILE="${PLANNER}-${MODEL}-${TASK}-${CONF_ID}_log"
 

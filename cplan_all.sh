@@ -51,7 +51,7 @@ do
 
 				JOB_NAME="${planner}-${model%.*}-${task}-${config%.*}"
 				#echo "DEBUG:JOB_NAME = $JOB_NAME"
-                      		echo "qsub -v planner="${planner}",model="${model}",task="${task}",domain="$1",config="${config}" -o $LOG_PATH/${JOB_NAME}_o.log -e $LOG_PATH/${JOB_NAME}_e.log -N $JOB_NAME $BASE_DIR/cplan_one.sh"
+                      		qsub -v planner="${planner}",model="${model}",task="${task}",domain="$1",config="${config}" -o $LOG_PATH/${JOB_NAME}_o.log -e $LOG_PATH/${JOB_NAME}_e.log -N $JOB_NAME $BASE_DIR/cplan_one.sh
 			done
                	done < prob_list
 	done < mod_list
