@@ -1,9 +1,9 @@
 #!/bin/bash
 #$ -wd /lnet/spec/work/people/vodrazka/picat_model_testing
 #$ -q troja-all.q@*
-#$ -l mem_free=1G
-#$ -l h_vmem=1G
-#$ -l h_rt=0:30:00
+#$ -l mem_free=4G
+#$ -l h_vmem=4G
+#$ -l h_rt=0:15:00
 
 # variables provided through qsub's -v option:
 
@@ -60,7 +60,20 @@ cat ${TEMPLATE} | sed "s#MODEL#${MODEL}#" | sed "s#TASK#${TASK}#" | sed "s#RESUL
 
 # fill-in the template
 COMMAND=`initializeTemplate ${COMMAND_TEMPLATE_PATH} ${MODEL_FILE} ${TASK_FILE} ${RESULT_FILE}`
+
+# command can contain output redirection ">" which has to be handled as a special case
+COMM=${COMMAND%%>*}
+REDIR=${COMMAND##*>}
+
 echo "Running planner"
 echo "command: ${COMMAND}"
+if [ "${COMM}" == "${REDIR}" ];
+then
+# no redirection
 ${COMMAND}
+else
+# redirection
+${COMM} > ${REDIR}
+fi
+
 echo "Done"

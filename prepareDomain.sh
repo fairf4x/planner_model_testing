@@ -8,7 +8,7 @@ echo "Initializing $DOMAIN_NAME"
 echo "creating directories:"
 
 echo "${DOMAIN_DIR}/${DOMAIN_NAME}/problems"
-mkdir ${DOMAIN_DIR}/${DOMAIN_NAME}/problems
+mkdir -p ${DOMAIN_DIR}/${DOMAIN_NAME}/problems
 
 echo "${DOMAIN_DIR}/${DOMAIN_NAME}/models"
 mkdir ${DOMAIN_DIR}/${DOMAIN_NAME}/models
