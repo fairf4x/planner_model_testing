@@ -5,18 +5,13 @@
 #$ -l h_vmem=4G
 #$ -l h_rt=0:15:00
 
-# variables provided through qsub's -v option:
+# variables provided by array index file:
 
-# planner
-PLANNER=${planner}
-# planner specific configuration file
-CONFIG=${config}
-# domain model used
-MODEL=${model}
-# problem instance
-TASK=${task}
-# domain
-DOMAIN=${domain}
+ARRAY_FILE=$1
+
+# get variables from ARRAY_FILE
+
+read DOMAIN PLANNER MODEL TASK CONFIG < <(sed -n ${SGE_TASK_ID}p ${ARRAY_FILE})
 
 # set up directories
 WORKDIR=`pwd`
@@ -43,6 +38,8 @@ MODEL_DIR="${DOMAIN_DIR}/models"
 # directory with problem instances
 TASK_DIR="${DOMAIN_DIR}/problems/${MODEL}"
 
+LOGFILE="${PLANNER}-${MODEL}-${TASK}-${CONF_ID}_log"
+
 # determine model file and problem file
 MODEL_FILE="${MODEL_DIR}/${MODEL}"
 TASK_FILE="${TASK_DIR}/${TASK}"
@@ -67,10 +64,10 @@ echo "Running planner"
 echo "command: ${COMMAND}"
 if [ "${COMM}" == "${REDIR}" ];
 then
-# no redirection
+#  no redirection
 ${COMMAND}
 else
-# redirection
+#  redirection
 ${COMM} > ${REDIR}
 fi
 
