@@ -25,7 +25,7 @@ CONF_ID=${CONFIG%.*}
 
 mkdir -p $RESULT_DIR
 
-echo "cplan_one.sh:"
+echo "cplan_array.sh:"
 echo "DOMAIN_DIR=${DOMAIN_DIR}"
 echo "RESULT_DIR=${RESULT_DIR}"
 echo "CONFIG=${CONFIG}"

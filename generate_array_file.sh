@@ -20,7 +20,7 @@ touch ${ARRAY_FILE}
 function clean () {
 RESULT_PATH=${BASE_DIR}/${RESULT_DIR}/$1
 DOMAIN_PATH=${BASE_DIR}/${DOMAIN_DIR}/$1
-LOG_PATH=${BASE_DIR}/${LOG_DIR}/$1
+LOG_PATH=${BASE_DIR}/${LOG_DIR}
 echo -n "cleaning files from previous experiments .."
 [[ -d "$RESULT_PATH" ]] && rm -rf "$RESULT_PATH"
 [[ -d "$LOG_PATH" ]] && rm -rf "$LOG_PATH"
@@ -31,7 +31,7 @@ function process_domain () {
 DOMAIN_PATH=${BASE_DIR}/${DOMAIN_DIR}/$1
 RESULT_PATH=${BASE_DIR}/${RESULT_DIR}/$1
 PLANNER_PATH=${BASE_DIR}/${PLANNER_DIR}
-LOG_PATH=${BASE_DIR}/${LOG_DIR}/$1
+LOG_PATH=${BASE_DIR}/${LOG_DIR}
 DOMAIN=$1
 clean ${DOMAIN}
 
