@@ -1,6 +1,5 @@
 #!/bin/bash
-#$ -wd /lnet/aic/personal/vodrazka/picat_model_testing
-#$ -q cpu.q@*
+#$ -wd /lnet/spec/work/people/vodrazka/planner_model_testing
 #$ -l mem_free=4G
 #$ -l h_vmem=4G
 #$ -l h_rt=0:15:00
